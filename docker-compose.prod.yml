@@ -1,0 +1,42 @@
+# ---------------------------------------------------------------------------
+# docker-compose.prod.yml – Production environment overrides
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ---------------------------------------------------------------------------
+
+version: "3.9"
+
+services:
+  api:
+    restart: always
+    command: >
+      uvicorn main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+    environment:
+      - CELERY_ENV=prod
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMIUM_PROFILE_DIR=/data/chromium-profile
+      - OUTPUT_DIR=/data/outputs
+    # Remove the host-port binding in prod; use a reverse-proxy (nginx/ALB)
+    ports: []
+
+  worker:
+    restart: always
+    command: >
+      celery -A worker.celery_app worker
+      --loglevel=warning
+      --concurrency=4
+    environment:
+      - CELERY_ENV=prod
+      - REDIS_URL=${REDIS_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMIUM_PROFILE_DIR=/data/chromium-profile
+      - OUTPUT_DIR=/data/outputs
+
+  redis:
+    # In production, consider replacing this with AWS ElastiCache or a
+    # managed Redis service and removing this container entirely.
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning

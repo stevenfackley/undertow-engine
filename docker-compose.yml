@@ -1,0 +1,71 @@
+# ---------------------------------------------------------------------------
+# docker-compose.yml – Base configuration
+# Shared by test and production override files.
+# ---------------------------------------------------------------------------
+
+version: "3.9"
+
+services:
+  # --------------------------------------------------------------------------
+  # FastAPI web API
+  # --------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: undertow-engine:latest
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMIUM_PROFILE_DIR=/data/chromium-profile
+      - OUTPUT_DIR=/data/outputs
+    volumes:
+      - chromium_profile:/data/chromium-profile
+      - outputs:/data/outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Celery worker
+  # --------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: undertow-engine:latest
+    command: >
+      celery -A worker.celery_app worker
+      --loglevel=info
+      --concurrency=2
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - CHROMIUM_PROFILE_DIR=/data/chromium-profile
+      - OUTPUT_DIR=/data/outputs
+    volumes:
+      - chromium_profile:/data/chromium-profile
+      - outputs:/data/outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
+  # Redis broker / result backend
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  chromium_profile:
+  outputs:
