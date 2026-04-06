@@ -53,6 +53,7 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
+    result_expires=86400,  # purge task results from Redis after 24 hours
     beat_schedule={
         "cleanup-old-outputs": {
             "task": "undertow_engine.cleanup_old_outputs",
