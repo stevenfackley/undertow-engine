@@ -35,6 +35,14 @@ services:
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
 
+  flower:
+    image: mher/flower:2.0
+    restart: always
+    command: celery --broker=${REDIS_URL} flower --port=5555
+    ports: []  # bind via reverse proxy; do NOT expose publicly
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+
   beat:
     restart: always
     command: celery -A worker.celery_app beat --loglevel=warning

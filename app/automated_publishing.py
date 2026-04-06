@@ -28,6 +28,10 @@ CHROMIUM_PROFILE_DIR = os.environ.get(
 TIKTOK_UPLOAD_URL = "https://www.tiktok.com/upload"
 INSTAGRAM_CREATE_URL = "https://www.instagram.com/create/style/"
 
+# Platform caption character limits
+TIKTOK_CAPTION_LIMIT = 2200
+INSTAGRAM_CAPTION_LIMIT = 2200
+
 # ---------------------------------------------------------------------------
 # Platform UI selectors – update these when the platform UI changes
 # ---------------------------------------------------------------------------
@@ -51,6 +55,12 @@ INSTAGRAM_SUCCESS_INDICATOR = "span:has-text('Your reel has been shared')"
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
+
+
+def _truncate_caption(caption: str, limit: int) -> str:
+    if len(caption) <= limit:
+        return caption
+    return caption[: limit - 1] + "…"
 
 
 def _launch_browser(playwright) -> BrowserContext:
@@ -99,7 +109,7 @@ def upload_to_tiktok(video_path: str | Path, caption: str) -> None:
 
         # --- Stub: caption textarea (update TIKTOK_CAPTION_INPUT if UI changes) ---
         caption_area = page.locator(TIKTOK_CAPTION_INPUT).first
-        caption_area.fill(caption)
+        caption_area.fill(_truncate_caption(caption, TIKTOK_CAPTION_LIMIT))
 
         # --- Stub: submit button (update TIKTOK_SUBMIT_BUTTON if UI changes) ---
         page.locator(TIKTOK_SUBMIT_BUTTON).first.click()
@@ -151,7 +161,7 @@ def upload_to_instagram(video_path: str | Path, caption: str) -> None:
 
         # --- Stub: fill caption (update INSTAGRAM_CAPTION_INPUT if UI changes) ---
         caption_area = page.locator(INSTAGRAM_CAPTION_INPUT).first
-        caption_area.fill(caption)
+        caption_area.fill(_truncate_caption(caption, INSTAGRAM_CAPTION_LIMIT))
 
         # --- Stub: share (update INSTAGRAM_SHARE_BUTTON if UI changes) ---
         page.locator(INSTAGRAM_SHARE_BUTTON).first.click()

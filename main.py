@@ -11,11 +11,21 @@ import os
 import socket
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, HTTPException, Security
+import redis as _redis_lib
+from fastapi import Depends, FastAPI, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, HttpUrl
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from worker import celery_app, process_video_payload
+
+# ---------------------------------------------------------------------------
+# Rate limiting
+# ---------------------------------------------------------------------------
+
+limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
     title="Undertow Engine",
@@ -25,6 +35,9 @@ app = FastAPI(
     ),
     version="1.0.0",
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +114,18 @@ class JobStatusResponse(BaseModel):
 
 @app.get("/healthz", tags=["health"])
 def health_check() -> dict:
-    """Liveness probe."""
+    """Liveness probe — returns immediately without touching external services."""
+    return {"status": "ok"}
+
+
+@app.get("/readyz", tags=["health"])
+def readiness_check() -> dict:
+    """Readiness probe — verifies Redis connectivity before accepting traffic."""
+    url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+    try:
+        _redis_lib.from_url(url, socket_connect_timeout=2).ping()
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Redis unreachable: {exc}") from exc
     return {"status": "ok"}
 
 
@@ -111,11 +135,11 @@ def health_check() -> dict:
     tags=["generate"],
     dependencies=[Depends(_require_api_key)],
 )
-def generate(payload: GenerateRequest) -> GenerateResponse:
+@limiter.limit("10/minute")
+def generate(request: Request, payload: GenerateRequest) -> GenerateResponse:
     """
     Enqueue a video generation job.
 
-    Accepts a JSON body with:
     - **text**: topic or raw idea for the AI scriptwriter.
     - **background_video_url**: publicly accessible URL of the gameplay video.
     - **caption**: optional post caption (hashtags can be included).
@@ -144,7 +168,8 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
     tags=["jobs"],
     dependencies=[Depends(_require_api_key)],
 )
-def job_status(task_id: str) -> JobStatusResponse:
+@limiter.limit("60/minute")
+def job_status(request: Request, task_id: str) -> JobStatusResponse:
     """
     Poll the status of a video generation job.
 

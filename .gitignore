@@ -131,11 +131,16 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
+# Output data (rendered videos and browser profiles — never commit)
+/data/
+
 # SageMath parsed files
 *.sage.py
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
