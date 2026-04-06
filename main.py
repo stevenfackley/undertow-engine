@@ -7,8 +7,11 @@ Exposes POST /api/v1/generate which enqueues a video-generation job via Celery.
 from __future__ import annotations
 
 import ipaddress
+import logging
 import os
 import socket
+import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 import redis as _redis_lib
@@ -18,8 +21,14 @@ from pydantic import BaseModel, HttpUrl
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
 
+from app.logging_config import configure_logging
 from worker import celery_app, process_video_payload
+
+configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("undertow.api")
 
 # ---------------------------------------------------------------------------
 # Rate limiting
@@ -38,6 +47,31 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+# ---------------------------------------------------------------------------
+# Request ID middleware
+# ---------------------------------------------------------------------------
+
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next) -> Response:
+        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        request.state.request_id = request_id
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        logger.info(
+            "http_request",
+            extra={
+                "method": request.method,
+                "path": request.url.path,
+                "status": response.status_code,
+                "request_id": request_id,
+            },
+        )
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +112,10 @@ def _validate_video_url(url: str) -> None:
     except (socket.gaierror, ValueError):
         raise HTTPException(status_code=422, detail=f"Could not resolve host: {host!r}")
     if any(addr in net for net in _PRIVATE_NETS):
-        raise HTTPException(status_code=422, detail="background_video_url must not resolve to a private address")
+        raise HTTPException(
+            status_code=422,
+            detail="background_video_url must not resolve to a private address",
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -159,6 +196,14 @@ def generate(request: Request, payload: GenerateRequest) -> GenerateResponse:
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Could not enqueue task") from exc
 
+    logger.info(
+        "task_enqueued",
+        extra={
+            "task_id": task.id,
+            "platforms": payload.platforms,
+            "request_id": getattr(request.state, "request_id", "-"),
+        },
+    )
     return GenerateResponse(task_id=task.id)
 
 
@@ -201,3 +246,36 @@ def job_status(request: Request, task_id: str) -> JobStatusResponse:
         output_path=output_path,
         error=error,
     )
+
+
+@app.delete(
+    "/api/v1/jobs/{task_id}",
+    status_code=202,
+    tags=["jobs"],
+    dependencies=[Depends(_require_api_key)],
+)
+@limiter.limit("20/minute")
+def revoke_job(request: Request, task_id: str) -> dict:
+    """
+    Revoke a pending or running job.
+
+    Sends SIGTERM to the worker executing the task. Also removes any partial
+    output file so a subsequent re-submission doesn't skip the render step.
+    """
+    celery_app.control.revoke(task_id, terminate=True, signal="SIGTERM")
+
+    # Remove partial MP4 so a future re-submit doesn't treat it as a completed render
+    output_dir = os.environ.get("OUTPUT_DIR", "/data/outputs")
+    partial = Path(output_dir) / f"{task_id}.mp4"
+    if partial.exists():
+        partial.unlink()
+        logger.info("partial_output_removed", extra={"task_id": task_id})
+
+    logger.info(
+        "task_revoked",
+        extra={
+            "task_id": task_id,
+            "request_id": getattr(request.state, "request_id", "-"),
+        },
+    )
+    return {"task_id": task_id, "status": "revoked"}

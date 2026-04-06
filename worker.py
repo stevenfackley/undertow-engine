@@ -12,6 +12,7 @@ Broker URL selection:
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 import time
@@ -20,6 +21,11 @@ from pathlib import Path
 import httpx
 from celery import Celery
 from celery.schedules import crontab
+
+from app.logging_config import configure_logging
+
+configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
+logger = logging.getLogger("undertow.worker")
 
 # ---------------------------------------------------------------------------
 # Broker / backend configuration
@@ -65,8 +71,9 @@ def _fire_webhook(callback_url: str, payload: dict) -> None:
     """POST *payload* to *callback_url*, silently ignoring any failure."""
     try:
         httpx.post(callback_url, json=payload, timeout=10.0)
-    except Exception:
-        pass
+        logger.info("webhook_fired", extra={"callback_url": callback_url})
+    except Exception as exc:
+        logger.warning("webhook_failed", extra={"callback_url": callback_url, "error": str(exc)})
 
 
 # ---------------------------------------------------------------------------
@@ -83,6 +90,8 @@ def _fire_webhook(callback_url: str, payload: dict) -> None:
     retry_backoff=True,
     retry_backoff_max=300,
     retry_jitter=True,
+    soft_time_limit=600,   # 10 min — raises SoftTimeLimitExceeded (graceful)
+    time_limit=660,        # 11 min — hard SIGKILL
 )
 def process_video_payload(
     self,
@@ -108,20 +117,25 @@ def process_video_payload(
     if platforms is None:
         platforms = ["tiktok"]
 
+    task_id = self.request.id or "local"
     output_dir = Path(os.environ.get("OUTPUT_DIR", "/data/outputs"))
     output_dir.mkdir(parents=True, exist_ok=True)
-    task_id = self.request.id or "local"
     output_video_path = output_dir / f"{task_id}.mp4"
 
+    log = logger.bind if hasattr(logger, "bind") else lambda **kw: logger  # structlog compat
+    _log = logging.LoggerAdapter(logger, {"task_id": task_id})
+
     if output_video_path.exists():
-        # Already rendered on a prior attempt — jump straight to publishing
+        _log.info("render_skipped_output_exists")
         self.update_state(state="PROGRESS", meta={"step": "publishing"})
     else:
+        _log.info("pipeline_started", extra={"topic": text, "platforms": platforms})
         self.update_state(state="PROGRESS", meta={"step": "scripting"})
 
         # Step 1 – AI Script Generation
         from app.ai_scripting import generate_script
         script = generate_script(topic=text)
+        _log.info("script_generated", extra={"chars": len(script)})
 
         self.update_state(state="PROGRESS", meta={"step": "audio_processing"})
 
@@ -131,16 +145,18 @@ def process_video_payload(
         with tempfile.TemporaryDirectory() as tmpdir:
             audio_path = Path(tmpdir) / "processed_audio.mp3"
             process_script_to_audio(script=script, output_path=audio_path)
+            _log.info("audio_ready")
 
             self.update_state(state="PROGRESS", meta={"step": "timestamp_extraction"})
 
             # Step 3 – Whisper Word Timestamps
             from app.timestamp_extraction import extract_word_timestamps
             word_timestamps = extract_word_timestamps(audio_path=audio_path)
+            _log.info("timestamps_extracted", extra={"word_count": len(word_timestamps)})
 
             self.update_state(state="PROGRESS", meta={"step": "video_compositing"})
 
-            # Step 4 – Video Compositing (writes directly to persistent output path)
+            # Step 4 – Video Compositing
             from app.video_compositing import compose_video
             compose_video(
                 background_video_url=background_video_url,
@@ -148,6 +164,7 @@ def process_video_payload(
                 word_timestamps=word_timestamps,
                 output_path=output_video_path,
             )
+            _log.info("video_composed", extra={"output": str(output_video_path)})
 
         self.update_state(state="PROGRESS", meta={"step": "publishing"})
 
@@ -159,12 +176,15 @@ def process_video_payload(
             upload_to_tiktok(video_path=output_video_path, caption=caption)
         elif platform == "instagram":
             upload_to_instagram(video_path=output_video_path, caption=caption)
+        _log.info("platform_published", extra={"platform": platform})
 
     result = {
         "task_id": task_id,
         "status": "complete",
         "output_path": str(output_video_path),
     }
+
+    _log.info("pipeline_complete", extra={"output": str(output_video_path)})
 
     # Step 6 – Webhook notification
     if callback_url:
@@ -185,4 +205,5 @@ def cleanup_old_outputs(max_age_days: int = 7) -> dict:
         if f.stat().st_mtime < cutoff:
             f.unlink()
             deleted += 1
+    logger.info("cleanup_complete", extra={"deleted": deleted, "max_age_days": max_age_days})
     return {"deleted": deleted, "max_age_days": max_age_days}

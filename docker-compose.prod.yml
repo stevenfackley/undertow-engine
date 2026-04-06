@@ -45,13 +45,20 @@ services:
 
   beat:
     restart: always
-    command: celery -A worker.celery_app beat --loglevel=warning
+    command: >
+      celery -A worker.celery_app beat --loglevel=warning
+      --schedule=/var/celerybeat/celerybeat-schedule
     environment:
       - REDIS_URL=${REDIS_URL}
       - OUTPUT_DIR=/data/outputs
+    volumes:
+      - celerybeat:/var/celerybeat
 
   redis:
     # In production, consider replacing this with AWS ElastiCache or a
     # managed Redis service and removing this container entirely.
     restart: always
     command: redis-server --save 60 1 --loglevel warning
+
+volumes:
+  celerybeat:

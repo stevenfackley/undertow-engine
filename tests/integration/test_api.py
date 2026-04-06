@@ -234,3 +234,46 @@ def test_job_status_failed_no_result(client):
         resp = tc.get("/api/v1/jobs/abc-123")
 
     assert resp.json()["error"] == "Unknown error"
+
+
+# ---------------------------------------------------------------------------
+# DELETE /api/v1/jobs/{task_id}
+# ---------------------------------------------------------------------------
+
+def test_revoke_job_returns_202(client):
+    tc, _ = client
+    with patch("main.celery_app") as mock_ca:
+        resp = tc.delete("/api/v1/jobs/abc-123")
+    assert resp.status_code == 202
+    body = resp.json()
+    assert body["task_id"] == "abc-123"
+    assert body["status"] == "revoked"
+
+
+def test_revoke_job_calls_celery_revoke(client):
+    tc, _ = client
+    with patch("main.celery_app") as mock_ca:
+        tc.delete("/api/v1/jobs/abc-123")
+    mock_ca.control.revoke.assert_called_once_with(
+        "abc-123", terminate=True, signal="SIGTERM"
+    )
+
+
+def test_revoke_job_removes_partial_output(tmp_path, client):
+    tc, _ = client
+    partial = tmp_path / "abc-123.mp4"
+    partial.write_bytes(b"partial")
+
+    with patch("main.celery_app"):
+        with patch.dict("os.environ", {"OUTPUT_DIR": str(tmp_path)}):
+            tc.delete("/api/v1/jobs/abc-123")
+
+    assert not partial.exists()
+
+
+def test_revoke_job_ok_when_no_partial_file(client):
+    tc, _ = client
+    with patch("main.celery_app"):
+        with patch.dict("os.environ", {"OUTPUT_DIR": "/nonexistent"}):
+            resp = tc.delete("/api/v1/jobs/abc-999")
+    assert resp.status_code == 202

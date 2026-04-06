@@ -73,12 +73,15 @@ services:
       context: .
       dockerfile: Dockerfile
     image: undertow-engine:latest
-    command: celery -A worker.celery_app beat --loglevel=info
+    command: >
+      celery -A worker.celery_app beat --loglevel=info
+      --schedule=/var/celerybeat/celerybeat-schedule
     environment:
       - REDIS_URL=redis://redis:6379/0
       - OUTPUT_DIR=/data/outputs
     volumes:
       - outputs:/data/outputs
+      - celerybeat:/var/celerybeat
     depends_on:
       redis:
         condition: service_healthy
@@ -99,3 +102,4 @@ services:
 volumes:
   chromium_profile:
   outputs:
+  celerybeat:
