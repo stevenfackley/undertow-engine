@@ -23,3 +23,21 @@ services:
       celery -A worker.celery_app worker
       --loglevel=debug
       --concurrency=1
+
+  # --------------------------------------------------------------------------
+  # Test runner – exits with pytest's return code
+  # --------------------------------------------------------------------------
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: undertow-engine:latest
+    command: >
+      sh -c "pip install --quiet -r requirements-test.txt && pytest tests/ -v"
+    environment:
+      - CELERY_ENV=test
+      - REDIS_TEST_URL=redis://redis:6379/1
+      - OPENAI_API_KEY=test-key
+    depends_on:
+      redis:
+        condition: service_healthy

@@ -9,7 +9,7 @@ from __future__ import annotations
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
 
-from worker import process_video_payload
+from worker import celery_app, process_video_payload
 
 app = FastAPI(
     title="Undertow Engine",
@@ -36,6 +36,13 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     task_id: str
     status: str = "queued"
+
+
+class JobStatusResponse(BaseModel):
+    task_id: str
+    status: str
+    step: str | None = None
+    output_path: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -71,3 +78,34 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
         raise HTTPException(status_code=503, detail="Could not enqueue task") from exc
 
     return GenerateResponse(task_id=task.id)
+
+
+@app.get("/api/v1/jobs/{task_id}", response_model=JobStatusResponse, tags=["jobs"])
+def job_status(task_id: str) -> JobStatusResponse:
+    """
+    Poll the status of a video generation job.
+
+    Returns one of: ``queued``, ``started``, ``progress``, ``complete``, ``failed``.
+    """
+    result = celery_app.AsyncResult(task_id)
+    state = result.state.lower()
+
+    step: str | None = None
+    output_path: str | None = None
+
+    if state == "progress":
+        meta = result.info or {}
+        step = meta.get("step")
+    elif state == "success":
+        state = "complete"
+        info = result.result or {}
+        output_path = info.get("output_path")
+    elif state == "failure":
+        state = "failed"
+
+    return JobStatusResponse(
+        task_id=task_id,
+        status=state,
+        step=step,
+        output_path=output_path,
+    )

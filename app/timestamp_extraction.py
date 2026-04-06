@@ -56,13 +56,12 @@ def extract_word_timestamps(audio_path: str | Path) -> list[WordTimestamp]:
         )
 
     words: list[WordTimestamp] = []
-    for segment in response.segments or []:
-        for word_info in segment.words or []:
-            words.append(
-                WordTimestamp(
-                    word=word_info.word.strip(),
-                    start=float(word_info.start),
-                    end=float(word_info.end),
-                )
+    for word_info in response.words or []:
+        words.append(
+            WordTimestamp(
+                word=word_info.word.strip(),
+                start=float(word_info.start),
+                end=float(word_info.end),
             )
+        )
     return words
