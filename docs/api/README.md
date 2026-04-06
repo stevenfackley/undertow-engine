@@ -41,6 +41,7 @@ Enqueue a new video generation job. Returns a `task_id` immediately; rendering h
 | `background_video_url` | string (URL) | Yes | — | Publicly accessible URL of the gameplay/background video |
 | `caption` | string | No | `""` | Post caption including hashtags |
 | `platforms` | string[] | No | `["tiktok"]` | Target platforms. Supported: `"tiktok"`, `"instagram"` |
+| `callback_url` | string (URL) | No | `null` | URL to POST a completion payload to when the job finishes or fails |
 
 **Example request**
 ```json
@@ -90,6 +91,7 @@ Poll the status of a video generation job.
 | `status` | string | See status values below |
 | `step` | string \| null | Current pipeline step when `status` is `"progress"` |
 | `output_path` | string \| null | Absolute path to the rendered MP4 when `status` is `"complete"` |
+| `error` | string \| null | Error message when `status` is `"failed"` |
 
 **Status values**
 

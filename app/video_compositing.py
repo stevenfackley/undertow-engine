@@ -3,17 +3,19 @@ Video Compositing Module
 ------------------------
 Uses MoviePy to:
 1. Download and crop a background gameplay video to the length of the audio.
-2. Overlay dynamic, word-by-word kinetic text (Montserrat Black font).
-3. Highlight negative words in red and action words in yellow based on
+2. Crop/resize the background to 9:16 portrait (1080x1920) for TikTok/Reels.
+3. Pick a random start offset within the background for content variety.
+4. Overlay dynamic, word-by-word kinetic text (Montserrat Black font).
+5. Highlight negative words in red and action words in yellow based on
    Whisper word timestamps.
 """
 
 from __future__ import annotations
 
 import os
+import random
 import tempfile
 from pathlib import Path
-from typing import Sequence
 
 import httpx
 from moviepy.editor import (
@@ -55,6 +57,10 @@ NEGATIVE_COLOR = "red"
 ACTION_COLOR = "yellow"
 TEXT_POSITION = ("center", 0.75)  # centred horizontally, 75 % down vertically
 
+# Target output dimensions for TikTok / Instagram Reels (9:16 portrait)
+TARGET_W = 1080
+TARGET_H = 1920
+
 
 def _word_color(word: str) -> str:
     normalised = word.lower().strip(".,!?;:'\"")
@@ -64,6 +70,10 @@ def _word_color(word: str) -> str:
         return ACTION_COLOR
     return DEFAULT_TEXT_COLOR
 
+
+# ---------------------------------------------------------------------------
+# Video helpers
+# ---------------------------------------------------------------------------
 
 MAX_VIDEO_BYTES = int(os.environ.get("MAX_VIDEO_MB", "500")) * 1024 * 1024
 
@@ -87,13 +97,45 @@ def _download_video(url: str, dest: Path) -> Path:
     return dest
 
 
+def _to_portrait(clip: VideoFileClip) -> VideoFileClip:
+    """
+    Centre-crop *clip* to 9:16 portrait (1080×1920).
+
+    - Landscape source: scale to TARGET_H height, crop excess width.
+    - Portrait/square source: scale to TARGET_W width, crop excess height.
+    """
+    w, h = clip.size
+    if (w / h) > (TARGET_W / TARGET_H):
+        # Wider than 9:16 — fit height, crop sides
+        scaled = clip.resize(height=TARGET_H)
+        excess = scaled.size[0] - TARGET_W
+        return scaled.crop(x1=excess // 2, x2=excess // 2 + TARGET_W)
+    else:
+        # Taller than 9:16 — fit width, crop top/bottom
+        scaled = clip.resize(width=TARGET_W)
+        excess = scaled.size[1] - TARGET_H
+        return scaled.crop(y1=excess // 2, y2=excess // 2 + TARGET_H)
+
+
+def _random_start_offset(clip_duration: float, audio_duration: float) -> float:
+    """Return a random start time within the background that leaves room for *audio_duration*."""
+    headroom = clip_duration - audio_duration
+    if headroom <= 0:
+        return 0.0
+    return random.uniform(0, headroom)
+
+
+# ---------------------------------------------------------------------------
+# Text clips
+# ---------------------------------------------------------------------------
+
+
 def _build_text_clips(
     word_timestamps: list[WordTimestamp],
     video_size: tuple[int, int],
 ) -> list[TextClip]:
     """Create a TextClip for every word timed according to Whisper timestamps."""
     clips: list[TextClip] = []
-    width, height = video_size
     for wt in word_timestamps:
         duration = wt["end"] - wt["start"]
         if duration <= 0:
@@ -116,6 +158,11 @@ def _build_text_clips(
     return clips
 
 
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+
 def compose_video(
     background_video_url: str,
     audio_path: str | Path,
@@ -126,25 +173,10 @@ def compose_video(
     Compose the final MP4.
 
     1. Downloads *background_video_url*.
-    2. Crops the background to the audio duration.
-    3. Overlays kinetic word-by-word subtitles.
-    4. Writes the result to *output_path*.
-
-    Parameters
-    ----------
-    background_video_url:
-        Public URL of the background gameplay video.
-    audio_path:
-        Path to the processed audio file.
-    word_timestamps:
-        Per-word timestamps from Whisper.
-    output_path:
-        Destination path for the rendered MP4.
-
-    Returns
-    -------
-    Path
-        Path to the rendered MP4 file.
+    2. Loops if shorter than audio, then crops to a random start offset.
+    3. Centre-crops to 9:16 portrait (1080×1920).
+    4. Overlays kinetic word-by-word subtitles.
+    5. Writes the result to *output_path*.
     """
     audio_path = Path(audio_path)
     output_path = Path(output_path)
@@ -157,10 +189,19 @@ def compose_video(
         _download_video(background_video_url, raw_video_path)
 
         bg_clip = VideoFileClip(str(raw_video_path))
+
+        # Loop if the clip is shorter than the audio
         if bg_clip.duration < audio_duration:
             n = int(audio_duration / bg_clip.duration) + 1
             bg_clip = concatenate_videoclips([bg_clip] * n)
-        bg_clip = bg_clip.subclip(0, audio_duration)
+
+        # Random start for content variety
+        offset = _random_start_offset(bg_clip.duration, audio_duration)
+        bg_clip = bg_clip.subclip(offset, offset + audio_duration)
+
+        # Crop to 9:16 portrait
+        bg_clip = _to_portrait(bg_clip)
+
         bg_clip = bg_clip.set_audio(audio_clip)
 
         text_clips = _build_text_clips(word_timestamps, bg_clip.size)

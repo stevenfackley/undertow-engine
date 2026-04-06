@@ -17,6 +17,16 @@ from pydantic import BaseModel, HttpUrl
 
 from worker import celery_app, process_video_payload
 
+app = FastAPI(
+    title="Undertow Engine",
+    description=(
+        "Automated Hook Engine – handles video rendering and headless "
+        "social media uploading."
+    ),
+    version="1.0.0",
+)
+
+
 # ---------------------------------------------------------------------------
 # API key auth
 # ---------------------------------------------------------------------------
@@ -57,15 +67,6 @@ def _validate_video_url(url: str) -> None:
     if any(addr in net for net in _PRIVATE_NETS):
         raise HTTPException(status_code=422, detail="background_video_url must not resolve to a private address")
 
-app = FastAPI(
-    title="Undertow Engine",
-    description=(
-        "Automated Hook Engine – handles video rendering and headless "
-        "social media uploading."
-    ),
-    version="1.0.0",
-)
-
 
 # ---------------------------------------------------------------------------
 # Request / Response schemas
@@ -77,6 +78,7 @@ class GenerateRequest(BaseModel):
     background_video_url: HttpUrl
     caption: str = ""
     platforms: list[str] = ["tiktok"]
+    callback_url: HttpUrl | None = None
 
 
 class GenerateResponse(BaseModel):
@@ -89,6 +91,7 @@ class JobStatusResponse(BaseModel):
     status: str
     step: str | None = None
     output_path: str | None = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +120,7 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
     - **background_video_url**: publicly accessible URL of the gameplay video.
     - **caption**: optional post caption (hashtags can be included).
     - **platforms**: list of target platforms, e.g. ``["tiktok", "instagram"]``.
+    - **callback_url**: optional URL to POST a completion payload to when the job finishes.
     """
     _validate_video_url(str(payload.background_video_url))
 
@@ -126,6 +130,7 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
             background_video_url=str(payload.background_video_url),
             caption=payload.caption,
             platforms=payload.platforms,
+            callback_url=str(payload.callback_url) if payload.callback_url else None,
         )
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Could not enqueue task") from exc
@@ -143,13 +148,14 @@ def job_status(task_id: str) -> JobStatusResponse:
     """
     Poll the status of a video generation job.
 
-    Returns one of: ``queued``, ``started``, ``progress``, ``complete``, ``failed``.
+    Returns one of: ``pending``, ``started``, ``progress``, ``complete``, ``failed``.
     """
     result = celery_app.AsyncResult(task_id)
     state = result.state.lower()
 
     step: str | None = None
     output_path: str | None = None
+    error: str | None = None
 
     if state == "progress":
         meta = result.info or {}
@@ -160,10 +166,13 @@ def job_status(task_id: str) -> JobStatusResponse:
         output_path = info.get("output_path")
     elif state == "failure":
         state = "failed"
+        exc = result.result
+        error = str(exc) if exc else "Unknown error"
 
     return JobStatusResponse(
         task_id=task_id,
         status=state,
         step=step,
         output_path=output_path,
+        error=error,
     )

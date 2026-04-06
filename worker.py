@@ -17,6 +17,7 @@ import tempfile
 import time
 from pathlib import Path
 
+import httpx
 from celery import Celery
 from celery.schedules import crontab
 
@@ -56,6 +57,19 @@ celery_app.conf.update(
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _fire_webhook(callback_url: str, payload: dict) -> None:
+    """POST *payload* to *callback_url*, silently ignoring any failure."""
+    try:
+        httpx.post(callback_url, json=payload, timeout=10.0)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Tasks
 # ---------------------------------------------------------------------------
 
@@ -76,6 +90,7 @@ def process_video_payload(
     background_video_url: str,
     caption: str = "",
     platforms: list[str] | None = None,
+    callback_url: str | None = None,
 ) -> dict:
     """
     Orchestrate the full Undertow Engine pipeline:
@@ -85,73 +100,56 @@ def process_video_payload(
     3. Extract word-by-word timestamps with Whisper.
     4. Compose the final MP4 with MoviePy kinetic text overlays.
     5. Upload to each requested platform via Playwright.
+    6. POST to *callback_url* if provided.
 
-    Parameters
-    ----------
-    text:
-        Topic or raw idea passed to the AI scriptwriter.
-    background_video_url:
-        Public URL of the background gameplay video.
-    caption:
-        Post caption (hashtags can be included).
-    platforms:
-        List of target platforms.  Supported values: ``"tiktok"``,
-        ``"instagram"``.  Defaults to ``["tiktok"]``.
-
-    Returns
-    -------
-    dict
-        A result dict with keys ``task_id``, ``status``, and ``output_path``.
+    Render steps (1–4) are skipped on retry if the output MP4 already exists,
+    preventing redundant API calls and re-renders.
     """
     if platforms is None:
         platforms = ["tiktok"]
 
-    self.update_state(state="PROGRESS", meta={"step": "scripting"})
-
-    # Step 1 – AI Script Generation
-    from app.ai_scripting import generate_script
-
-    script = generate_script(topic=text)
-
-    self.update_state(state="PROGRESS", meta={"step": "audio_processing"})
-
-    # Step 2 – TTS + Silence Stripping
-    from app.audio_processing import process_script_to_audio
-
-    # Persistent output directory so rendered files survive after the task.
-    # Mount /data/outputs as a Docker volume in production.
     output_dir = Path(os.environ.get("OUTPUT_DIR", "/data/outputs"))
     output_dir.mkdir(parents=True, exist_ok=True)
     task_id = self.request.id or "local"
     output_video_path = output_dir / f"{task_id}.mp4"
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmpdir_path = Path(tmpdir)
-        audio_path = tmpdir_path / "processed_audio.mp3"
-        process_script_to_audio(script=script, output_path=audio_path)
+    if output_video_path.exists():
+        # Already rendered on a prior attempt — jump straight to publishing
+        self.update_state(state="PROGRESS", meta={"step": "publishing"})
+    else:
+        self.update_state(state="PROGRESS", meta={"step": "scripting"})
 
-        self.update_state(state="PROGRESS", meta={"step": "timestamp_extraction"})
+        # Step 1 – AI Script Generation
+        from app.ai_scripting import generate_script
+        script = generate_script(topic=text)
 
-        # Step 3 – Whisper Word Timestamps
-        from app.timestamp_extraction import extract_word_timestamps
+        self.update_state(state="PROGRESS", meta={"step": "audio_processing"})
 
-        word_timestamps = extract_word_timestamps(audio_path=audio_path)
+        # Step 2 – TTS + Silence Stripping
+        from app.audio_processing import process_script_to_audio
 
-        self.update_state(state="PROGRESS", meta={"step": "video_compositing"})
+        with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = Path(tmpdir) / "processed_audio.mp3"
+            process_script_to_audio(script=script, output_path=audio_path)
 
-        # Step 4 – Video Compositing (write directly to persistent output path)
-        from app.video_compositing import compose_video
+            self.update_state(state="PROGRESS", meta={"step": "timestamp_extraction"})
 
-        compose_video(
-            background_video_url=background_video_url,
-            audio_path=audio_path,
-            word_timestamps=word_timestamps,
-            output_path=output_video_path,
-        )
+            # Step 3 – Whisper Word Timestamps
+            from app.timestamp_extraction import extract_word_timestamps
+            word_timestamps = extract_word_timestamps(audio_path=audio_path)
 
-    # Temporary directory is now cleaned up; output_video_path persists.
+            self.update_state(state="PROGRESS", meta={"step": "video_compositing"})
 
-    self.update_state(state="PROGRESS", meta={"step": "publishing"})
+            # Step 4 – Video Compositing (writes directly to persistent output path)
+            from app.video_compositing import compose_video
+            compose_video(
+                background_video_url=background_video_url,
+                audio_path=audio_path,
+                word_timestamps=word_timestamps,
+                output_path=output_video_path,
+            )
+
+        self.update_state(state="PROGRESS", meta={"step": "publishing"})
 
     # Step 5 – Automated Publishing
     from app.automated_publishing import upload_to_instagram, upload_to_tiktok
@@ -162,11 +160,17 @@ def process_video_payload(
         elif platform == "instagram":
             upload_to_instagram(video_path=output_video_path, caption=caption)
 
-    return {
+    result = {
         "task_id": task_id,
         "status": "complete",
         "output_path": str(output_video_path),
     }
+
+    # Step 6 – Webhook notification
+    if callback_url:
+        _fire_webhook(callback_url, result)
+
+    return result
 
 
 @celery_app.task(name="undertow_engine.cleanup_old_outputs")
