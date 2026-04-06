@@ -54,6 +54,24 @@ services:
         condition: service_healthy
 
   # --------------------------------------------------------------------------
+  # Celery beat scheduler (periodic tasks)
+  # --------------------------------------------------------------------------
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: undertow-engine:latest
+    command: celery -A worker.celery_app beat --loglevel=info
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - OUTPUT_DIR=/data/outputs
+    volumes:
+      - outputs:/data/outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # --------------------------------------------------------------------------
   # Redis broker / result backend
   # --------------------------------------------------------------------------
   redis:

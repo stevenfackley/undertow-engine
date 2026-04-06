@@ -35,6 +35,13 @@ services:
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
 
+  beat:
+    restart: always
+    command: celery -A worker.celery_app beat --loglevel=warning
+    environment:
+      - REDIS_URL=${REDIS_URL}
+      - OUTPUT_DIR=/data/outputs
+
   redis:
     # In production, consider replacing this with AWS ElastiCache or a
     # managed Redis service and removing this container entirely.

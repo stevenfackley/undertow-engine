@@ -6,10 +6,56 @@ Exposes POST /api/v1/generate which enqueues a video-generation job via Celery.
 
 from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import ipaddress
+import os
+import socket
+from urllib.parse import urlparse
+
+from fastapi import Depends, FastAPI, HTTPException, Security
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, HttpUrl
 
 from worker import celery_app, process_video_payload
+
+# ---------------------------------------------------------------------------
+# API key auth
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+def _require_api_key(api_key: str | None = Security(_api_key_header)) -> None:
+    expected = os.environ.get("API_KEY")
+    if not expected:
+        return  # API_KEY not set → auth disabled (local dev)
+    if api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+# ---------------------------------------------------------------------------
+# SSRF guard
+# ---------------------------------------------------------------------------
+
+_PRIVATE_NETS = [
+    ipaddress.ip_network(cidr)
+    for cidr in (
+        "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+        "127.0.0.0/8", "169.254.0.0/16", "::1/128", "fc00::/7",
+    )
+]
+
+
+def _validate_video_url(url: str) -> None:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise HTTPException(status_code=422, detail="background_video_url must use http or https")
+    host = parsed.hostname or ""
+    try:
+        addr = ipaddress.ip_address(socket.gethostbyname(host))
+    except (socket.gaierror, ValueError):
+        raise HTTPException(status_code=422, detail=f"Could not resolve host: {host!r}")
+    if any(addr in net for net in _PRIVATE_NETS):
+        raise HTTPException(status_code=422, detail="background_video_url must not resolve to a private address")
 
 app = FastAPI(
     title="Undertow Engine",
@@ -56,7 +102,12 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
-@app.post("/api/v1/generate", response_model=GenerateResponse, tags=["generate"])
+@app.post(
+    "/api/v1/generate",
+    response_model=GenerateResponse,
+    tags=["generate"],
+    dependencies=[Depends(_require_api_key)],
+)
 def generate(payload: GenerateRequest) -> GenerateResponse:
     """
     Enqueue a video generation job.
@@ -67,6 +118,8 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
     - **caption**: optional post caption (hashtags can be included).
     - **platforms**: list of target platforms, e.g. ``["tiktok", "instagram"]``.
     """
+    _validate_video_url(str(payload.background_video_url))
+
     try:
         task = process_video_payload.delay(
             text=payload.text,
@@ -80,7 +133,12 @@ def generate(payload: GenerateRequest) -> GenerateResponse:
     return GenerateResponse(task_id=task.id)
 
 
-@app.get("/api/v1/jobs/{task_id}", response_model=JobStatusResponse, tags=["jobs"])
+@app.get(
+    "/api/v1/jobs/{task_id}",
+    response_model=JobStatusResponse,
+    tags=["jobs"],
+    dependencies=[Depends(_require_api_key)],
+)
 def job_status(task_id: str) -> JobStatusResponse:
     """
     Poll the status of a video generation job.

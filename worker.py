@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import os
 import tempfile
+import time
 from pathlib import Path
 
 from celery import Celery
+from celery.schedules import crontab
 
 # ---------------------------------------------------------------------------
 # Broker / backend configuration
@@ -44,6 +46,12 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     task_track_started=True,
+    beat_schedule={
+        "cleanup-old-outputs": {
+            "task": "undertow_engine.cleanup_old_outputs",
+            "schedule": crontab(hour=3, minute=0),  # daily at 03:00 UTC
+        },
+    },
 )
 
 
@@ -52,7 +60,16 @@ celery_app.conf.update(
 # ---------------------------------------------------------------------------
 
 
-@celery_app.task(bind=True, name="undertow_engine.process_video_payload")
+@celery_app.task(
+    bind=True,
+    name="undertow_engine.process_video_payload",
+    max_retries=3,
+    default_retry_delay=30,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    retry_jitter=True,
+)
 def process_video_payload(
     self,
     text: str,
@@ -150,3 +167,18 @@ def process_video_payload(
         "status": "complete",
         "output_path": str(output_video_path),
     }
+
+
+@celery_app.task(name="undertow_engine.cleanup_old_outputs")
+def cleanup_old_outputs(max_age_days: int = 7) -> dict:
+    """Delete rendered MP4s older than *max_age_days* from the output directory."""
+    output_dir = Path(os.environ.get("OUTPUT_DIR", "/data/outputs"))
+    if not output_dir.exists():
+        return {"deleted": 0}
+    cutoff = time.time() - max_age_days * 86400
+    deleted = 0
+    for f in output_dir.glob("*.mp4"):
+        if f.stat().st_mtime < cutoff:
+            f.unlink()
+            deleted += 1
+    return {"deleted": deleted, "max_age_days": max_age_days}

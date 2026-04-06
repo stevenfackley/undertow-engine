@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import os
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Sequence
 
+import httpx
 from moviepy.editor import (
     AudioFileClip,
     CompositeVideoClip,
     TextClip,
     VideoFileClip,
+    concatenate_videoclips,
 )
 
 from app.timestamp_extraction import WordTimestamp
@@ -64,9 +65,25 @@ def _word_color(word: str) -> str:
     return DEFAULT_TEXT_COLOR
 
 
+MAX_VIDEO_BYTES = int(os.environ.get("MAX_VIDEO_MB", "500")) * 1024 * 1024
+
+
 def _download_video(url: str, dest: Path) -> Path:
-    """Download a remote video to *dest* and return the path."""
-    urllib.request.urlretrieve(url, str(dest))  # noqa: S310
+    """Stream *url* to *dest*, enforcing a size cap and video content-type check."""
+    with httpx.stream("GET", url, follow_redirects=True, timeout=120.0) as r:
+        r.raise_for_status()
+        content_type = r.headers.get("content-type", "")
+        if not content_type.startswith("video/"):
+            raise ValueError(f"Expected video/* content-type, got {content_type!r}")
+        total = 0
+        with dest.open("wb") as f:
+            for chunk in r.iter_bytes(chunk_size=65536):
+                total += len(chunk)
+                if total > MAX_VIDEO_BYTES:
+                    raise ValueError(
+                        f"Background video exceeds {MAX_VIDEO_BYTES // (1024 * 1024)} MB limit"
+                    )
+                f.write(chunk)
     return dest
 
 
@@ -139,7 +156,11 @@ def compose_video(
         raw_video_path = Path(tmpdir) / "background_raw.mp4"
         _download_video(background_video_url, raw_video_path)
 
-        bg_clip = VideoFileClip(str(raw_video_path)).subclip(0, audio_duration)
+        bg_clip = VideoFileClip(str(raw_video_path))
+        if bg_clip.duration < audio_duration:
+            n = int(audio_duration / bg_clip.duration) + 1
+            bg_clip = concatenate_videoclips([bg_clip] * n)
+        bg_clip = bg_clip.subclip(0, audio_duration)
         bg_clip = bg_clip.set_audio(audio_clip)
 
         text_clips = _build_text_clips(word_timestamps, bg_clip.size)
