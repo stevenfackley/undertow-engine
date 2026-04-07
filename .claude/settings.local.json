@@ -5,7 +5,10 @@
       "Bash(ls -d /c/Users/steve/projects/*roast* /c/Users/steve/projects/*resolve*)",
       "Bash(grep:*)",
       "Bash(gh run:*)",
-      "Bash(ruff check:*)"
+      "Bash(ruff check:*)",
+      "Bash(pip install:*)",
+      "Bash(CELERY_ENV=test OPENAI_API_KEY=test-key pytest tests/integration/test_api.py::test_generate_enqueues_task -v)",
+      "Bash(python -m pytest tests/integration/test_api.py::test_generate_enqueues_task -v -s)"
     ]
   }
 }

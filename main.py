@@ -173,7 +173,7 @@ def readiness_check() -> dict:
     dependencies=[Depends(_require_api_key)],
 )
 @limiter.limit("10/minute")
-def generate(request: Request, payload: GenerateRequest = Body(...)) -> GenerateResponse:
+async def generate(request: Request, payload: GenerateRequest = Body(...)) -> GenerateResponse:
     """
     Enqueue a video generation job.
 
