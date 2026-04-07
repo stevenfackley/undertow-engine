@@ -1,0 +1,16 @@
+# Copy to backend.conf (gitignored) and fill in your values.
+# Then run: terraform init -backend-config=backend.conf
+#
+# Create the R2 bucket first (Cloudflare dashboard → R2 → Create bucket → "undertow-tfstate")
+# Then create an R2 API token with Object Read & Write on that bucket.
+
+bucket                      = "undertow-tfstate"
+key                         = "terraform.tfstate"
+region                      = "auto"
+endpoint                    = "https://<CF_ACCOUNT_ID>.r2.cloudflarestorage.com"
+access_key                  = "<R2_ACCESS_KEY_ID>"
+secret_key                  = "<R2_SECRET_ACCESS_KEY>"
+skip_credentials_validation = true
+skip_metadata_api_check     = true
+skip_region_validation      = true
+force_path_style            = true

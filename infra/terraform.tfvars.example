@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored) and fill in real values.
+
+aws_region            = "us-east-1"
+cloudflare_account_id = "<from Cloudflare dashboard → top-right account menu>"
+cloudflare_zone_id    = "<from Cloudflare dashboard → roastandresolve.com → overview → Zone ID>"
+github_repo           = "stevenfackley/undertow-engine"
+
+# Set to false if roast-and-resolve already created the GitHub OIDC provider
+# in this AWS account (each account can only have one per IdP).
+create_github_oidc_provider = true
+
+# Sensitive — set via environment variable instead of this file:
+#   export TF_VAR_cloudflare_api_token="your-token"

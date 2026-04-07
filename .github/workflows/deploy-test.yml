@@ -5,6 +5,10 @@
 # Triggers:
 #   • Every push to the `develop` branch
 #   • Every pull request targeting `develop`
+#
+# Required GitHub secrets:
+#   AWS_OIDC_ROLE_ARN     — from: terraform output github_actions_role_arn
+#   OPENAI_API_KEY        — for test step
 # ---------------------------------------------------------------------------
 
 name: Deploy – Test
@@ -37,38 +41,41 @@ jobs:
           python-version: "3.11"
           cache: pip
 
+      - name: Install system dependencies
+        run: sudo apt-get install -y ffmpeg
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
+      - name: Lint
+        run: ruff check .
 
       - name: Run tests
         env:
           CELERY_ENV: test
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          # TODO: replace with your test runner command, e.g.:
-          # pytest tests/ -v --tb=short
-          echo "No tests configured yet – add pytest invocation here"
+        run: pytest
 
   # --------------------------------------------------------------------------
-  # 2. Build & push Docker image to registry
+  # 2. Build & push Docker image to ECR
   # --------------------------------------------------------------------------
   build:
-    name: Build & Push Image
+    name: Build & Push Image (Test)
     runs-on: ubuntu-latest
     needs: test
     permissions:
       contents: read
+      id-token: write   # required for OIDC
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
 
       - name: Log in to Amazon ECR
         id: login-ecr
@@ -81,48 +88,3 @@ jobs:
         run: |
           docker build -t $ECR_REGISTRY/undertow-engine:$IMAGE_TAG .
           docker push $ECR_REGISTRY/undertow-engine:$IMAGE_TAG
-
-  # --------------------------------------------------------------------------
-  # 3. Deploy to test/staging environment on AWS
-  # --------------------------------------------------------------------------
-  deploy:
-    name: Deploy to Test
-    runs-on: ubuntu-latest
-    needs: build
-    permissions: {}
-
-    steps:
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      # -----------------------------------------------------------------------
-      # TODO: Choose ONE of the following deployment strategies and remove the
-      #       other.
-      # -----------------------------------------------------------------------
-
-      # Option A – AWS Systems Manager Run Command (SSM)
-      # Requires the EC2 instance to have the SSM Agent installed and an
-      # IAM role granting ssm:SendCommand.
-      - name: "[TODO] Deploy via AWS SSM Run Command"
-        run: |
-          # aws ssm send-command \
-          #   --instance-ids "${{ secrets.TEST_EC2_INSTANCE_ID }}" \
-          #   --document-name "AWS-RunShellScript" \
-          #   --parameters commands=[
-          #     "cd /opt/undertow-engine",
-          #     "docker compose -f docker-compose.yml -f docker-compose.test.yml pull",
-          #     "docker compose -f docker-compose.yml -f docker-compose.test.yml up -d --remove-orphans"
-          #   ]
-          echo "TODO: add SSM or EC2 deployment command"
-
-      # Option B – Direct EC2 SSH via bastion / EC2 Instance Connect
-      # - name: "[TODO] Deploy via SSH to EC2"
-      #   run: |
-      #     ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.TEST_EC2_HOST }} \
-      #       "cd /opt/undertow-engine && \
-      #        docker compose -f docker-compose.yml -f docker-compose.test.yml pull && \
-      #        docker compose -f docker-compose.yml -f docker-compose.test.yml up -d"

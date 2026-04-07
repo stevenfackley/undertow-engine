@@ -5,18 +5,15 @@
 # Required env vars (.env):
 #   OPENAI_API_KEY, API_KEY, REDIS_PASSWORD,
 #   FLOWER_USER, FLOWER_PASSWORD,
-#   DATABASE_URL (Neon) OR SUPABASE_URL + SUPABASE_SERVICE_KEY — pick one,
-#   DOMAIN (your API domain, e.g. api.undertow.dev)
-#
-# Server setup (run once):
-#   docker network create shared_proxy_network
+#   TUNNEL_TOKEN (from: terraform output -raw tunnel_token),
+#   DATABASE_URL (Neon) OR SUPABASE_URL + SUPABASE_SERVICE_KEY — pick one
 # ---------------------------------------------------------------------------
 
 version: "3.9"
 
 services:
   api:
-    container_name: undertow-api          # Docker DNS name used by nginx proxy
+    container_name: undertow-api          # Docker DNS name used by cloudflared
     restart: always
     command: >
       uvicorn main:app
@@ -34,10 +31,7 @@ services:
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
       - LOG_LEVEL=INFO
-    ports: []                             # nginx handles all ingress
-    networks:
-      - default
-      - shared_proxy_network             # reachable as undertow-api:8001 from proxy
+    ports: []
 
   worker:
     restart: always
@@ -90,9 +84,12 @@ services:
       --loglevel warning
     ports: []
 
-networks:
-  shared_proxy_network:
-    external: true                        # created manually: docker network create shared_proxy_network
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - api
 
 volumes:
   celerybeat:
