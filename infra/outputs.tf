@@ -10,11 +10,11 @@ output "github_actions_role_arn" {
 
 output "tunnel_token" {
   description = "Copy this to server .env as TUNNEL_TOKEN and GitHub secret TUNNEL_TOKEN"
-  value       = cloudflare_tunnel.undertow.tunnel_token
+  value       = cloudflare_zero_trust_tunnel_cloudflared.undertow.tunnel_token
   sensitive   = true
 }
 
 output "tunnel_id" {
   description = "Cloudflare tunnel ID"
-  value       = cloudflare_tunnel.undertow.id
+  value       = cloudflare_zero_trust_tunnel_cloudflared.undertow.id
 }

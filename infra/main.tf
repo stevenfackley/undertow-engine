@@ -16,9 +16,7 @@ terraform {
     }
   }
 
-  # R2 backend — fill in infra/backend.conf (copy from backend.conf.example) then:
-  #   terraform init -backend-config=backend.conf
-  backend "s3" {}
+  backend "local" {}
 }
 
 provider "aws" {
