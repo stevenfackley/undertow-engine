@@ -3,7 +3,9 @@
     "allow": [
       "Bash(find:*)",
       "Bash(ls -d /c/Users/steve/projects/*roast* /c/Users/steve/projects/*resolve*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(gh run:*)",
+      "Bash(ruff check:*)"
     ]
   }
 }

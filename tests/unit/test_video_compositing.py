@@ -9,14 +9,13 @@ import pytest
 
 import app.video_compositing as module
 from app.video_compositing import (
-    TARGET_H,
-    TARGET_W,
-    _word_color,
     ACTION_COLOR,
     DEFAULT_TEXT_COLOR,
     NEGATIVE_COLOR,
+    TARGET_H,
+    TARGET_W,
+    _word_color,
 )
-
 
 # ---------------------------------------------------------------------------
 # _word_color

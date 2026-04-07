@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-from unittest.mock import MagicMock, patch, mock_open
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 

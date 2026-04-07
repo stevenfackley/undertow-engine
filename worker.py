@@ -228,15 +228,6 @@ def process_video_payload(
             # ------------------------------------------------------------------
             # Compositing — resolve background (local path or URL)
             # ------------------------------------------------------------------
-            from app.video_compositing import (
-                AudioFileClip,
-                CompositeVideoClip,
-                VideoFileClip,
-                _build_text_clips,
-                _random_start_offset,
-                _to_portrait,
-                concatenate_videoclips,
-            )
             from app.video_compositing import compose_video
 
             compose_video(

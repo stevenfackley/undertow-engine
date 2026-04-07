@@ -8,6 +8,7 @@ video script with a 3-second hook opening and an infinite-loop ending.
 from __future__ import annotations
 
 import os
+
 from openai import OpenAI
 
 _client: OpenAI | None = None

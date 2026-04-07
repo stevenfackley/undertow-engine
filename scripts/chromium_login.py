@@ -14,6 +14,7 @@ Usage (from repo root):
 from __future__ import annotations
 
 import os
+
 from playwright.sync_api import sync_playwright
 
 PROFILE_DIR = os.environ.get("CHROMIUM_PROFILE_DIR", "/data/chromium-profile")

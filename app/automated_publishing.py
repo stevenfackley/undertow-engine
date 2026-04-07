@@ -17,7 +17,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright, BrowserContext, Page
+from playwright.sync_api import BrowserContext, Page, sync_playwright
 
 # Path to the persistent Chromium profile directory.  Mount this as a Docker
 # volume so login sessions survive container restarts.
