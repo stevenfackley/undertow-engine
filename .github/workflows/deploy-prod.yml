@@ -73,6 +73,9 @@ jobs:
 
       - name: Deploy via SSM Run Command
         run: |
+          echo "Verifying SSM connectivity..."
+          aws ssm describe-instance-information --query "InstanceInformationList[*].InstanceId" --output text
+
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.PROD_EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
