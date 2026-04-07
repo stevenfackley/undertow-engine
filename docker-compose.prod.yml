@@ -2,46 +2,41 @@
 # docker-compose.prod.yml – Production environment overrides
 # Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
-# Required env vars (copy .env.example → .env and fill in):
-#   OPENAI_API_KEY, API_KEY, REDIS_PASSWORD, FLOWER_USER, FLOWER_PASSWORD, DOMAIN
+# Required env vars (.env):
+#   OPENAI_API_KEY, API_KEY, REDIS_PASSWORD,
+#   FLOWER_USER, FLOWER_PASSWORD,
+#   SUPABASE_URL, SUPABASE_SERVICE_KEY,
+#   DOMAIN (your API domain, e.g. api.undertow.dev)
+#
+# Server setup (run once):
+#   docker network create shared_proxy_network
 # ---------------------------------------------------------------------------
 
 version: "3.9"
 
 services:
-  # --------------------------------------------------------------------------
-  # nginx reverse proxy — TLS termination for API and Flower
-  # Edit nginx/nginx.conf: replace YOUR_DOMAIN / YOUR_FLOWER_DOMAIN.
-  # Place certs in nginx/certs/ (fullchain.pem + privkey.pem).
-  # --------------------------------------------------------------------------
-  nginx:
-    image: nginx:1.27-alpine
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
-    depends_on:
-      - api
-      - flower
-
   api:
+    container_name: undertow-api          # Docker DNS name used by nginx proxy
     restart: always
     command: >
       uvicorn main:app
       --host 0.0.0.0
-      --port 8000
+      --port 8001
       --workers 4
     environment:
       - CELERY_ENV=prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - API_KEY=${API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
-    ports: []  # nginx handles ingress; never expose directly
+      - LOG_LEVEL=INFO
+    ports: []                             # nginx handles all ingress
+    networks:
+      - default
+      - shared_proxy_network             # reachable as undertow-api:8001 from proxy
 
   worker:
     restart: always
@@ -53,8 +48,11 @@ services:
       - CELERY_ENV=prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
+      - LOG_LEVEL=INFO
 
   flower:
     image: mher/flower:2.0
@@ -63,7 +61,7 @@ services:
       celery --broker=redis://:${REDIS_PASSWORD}@redis:6379/0
       flower --port=5555
       --basic_auth=${FLOWER_USER}:${FLOWER_PASSWORD}
-    ports: []  # nginx proxies flower; never expose directly
+    ports: []
     environment:
       - CELERY_BROKER_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
 
@@ -74,19 +72,24 @@ services:
       --schedule=/var/celerybeat/celerybeat-schedule
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
       - OUTPUT_DIR=/data/outputs
     volumes:
       - celerybeat:/var/celerybeat
 
   redis:
     restart: always
-    # Password-protected; port NOT exposed to host — only reachable within compose network
     command: >
       redis-server
       --requirepass ${REDIS_PASSWORD}
       --save 60 1
       --loglevel warning
     ports: []
+
+networks:
+  shared_proxy_network:
+    external: true                        # created manually: docker network create shared_proxy_network
 
 volumes:
   celerybeat:

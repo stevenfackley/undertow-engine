@@ -134,10 +134,13 @@ celerybeat.pid
 # Output data (rendered videos and browser profiles — never commit)
 /data/
 
-# TLS certificates — keep the certs/ directory but never commit actual certs
+# TLS certificates — keep the certs/ directories but never commit actual certs
 nginx/certs/*.pem
 nginx/certs/*.crt
 nginx/certs/*.key
+deploy/proxy/certs/*.pem
+deploy/proxy/certs/*.crt
+deploy/proxy/certs/*.key
 
 # SageMath parsed files
 *.sage.py

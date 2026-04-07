@@ -51,7 +51,7 @@ ACTION_WORDS: frozenset[str] = frozenset(
 )
 
 FONT = "Montserrat-Black"
-FONT_SIZE = 70
+FONT_SIZE = 80
 DEFAULT_TEXT_COLOR = "white"
 NEGATIVE_COLOR = "red"
 ACTION_COLOR = "yellow"
