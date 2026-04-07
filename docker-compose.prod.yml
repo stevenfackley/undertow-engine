@@ -5,7 +5,7 @@
 # Required env vars (.env):
 #   OPENAI_API_KEY, API_KEY, REDIS_PASSWORD,
 #   FLOWER_USER, FLOWER_PASSWORD,
-#   SUPABASE_URL, SUPABASE_SERVICE_KEY,
+#   DATABASE_URL (Neon) OR SUPABASE_URL + SUPABASE_SERVICE_KEY — pick one,
 #   DOMAIN (your API domain, e.g. api.undertow.dev)
 #
 # Server setup (run once):
@@ -28,8 +28,9 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - API_KEY=${API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
       - LOG_LEVEL=INFO
@@ -48,8 +49,9 @@ services:
       - CELERY_ENV=prod
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
       - LOG_LEVEL=INFO
@@ -72,8 +74,9 @@ services:
       --schedule=/var/celerybeat/celerybeat-schedule
     environment:
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
       - OUTPUT_DIR=/data/outputs
     volumes:
       - celerybeat:/var/celerybeat
