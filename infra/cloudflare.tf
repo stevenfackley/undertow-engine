@@ -4,7 +4,7 @@ resource "random_id" "tunnel_secret" {
 
 resource "cloudflare_zero_trust_tunnel_cloudflared" "undertow" {
   account_id = var.cloudflare_account_id
-  name       = "undertow-engine"
+  name       = "undertow-api"
   secret     = random_id.tunnel_secret.b64_std
 }
 
