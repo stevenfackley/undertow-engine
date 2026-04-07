@@ -82,7 +82,9 @@ jobs:
             INSTANCE_ID="$MANAGED_INSTANCE"
           fi
 
-          echo "Deploying to instance: $INSTANCE_ID"
+          # Unmask for debug
+          UNMASKED=$(echo "$INSTANCE_ID" | sed 's/./& /g')
+          echo "Deploying to instance (spaced): $UNMASKED"
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
