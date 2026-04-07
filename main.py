@@ -172,7 +172,7 @@ def readiness_check() -> dict:
     tags=["generate"],
     dependencies=[Depends(_require_api_key)],
 )
-@limiter.limit("10/minute")
+# @limiter.limit("10/minute")
 async def generate(request: Request, payload: GenerateRequest = Body(...)) -> GenerateResponse:
     """
     Enqueue a video generation job.
@@ -183,28 +183,35 @@ async def generate(request: Request, payload: GenerateRequest = Body(...)) -> Ge
     - **platforms**: list of target platforms, e.g. ``["tiktok", "instagram"]``.
     - **callback_url**: optional URL to POST a completion payload to when the job finishes.
     """
-    _validate_video_url(str(payload.background_video_url))
-
     try:
-        task = process_video_payload.delay(
-            text=payload.text,
-            background_video_url=str(payload.background_video_url),
-            caption=payload.caption,
-            platforms=payload.platforms,
-            callback_url=str(payload.callback_url) if payload.callback_url else None,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=503, detail="Could not enqueue task") from exc
+        _validate_video_url(str(payload.background_video_url))
 
-    logger.info(
-        "task_enqueued",
-        extra={
-            "task_id": task.id,
-            "platforms": payload.platforms,
-            "request_id": getattr(request.state, "request_id", "-"),
-        },
-    )
-    return GenerateResponse(task_id=task.id)
+        try:
+            task = process_video_payload.delay(
+                text=payload.text,
+                background_video_url=str(payload.background_video_url),
+                caption=payload.caption,
+                platforms=payload.platforms,
+                callback_url=str(payload.callback_url) if payload.callback_url else None,
+            )
+        except Exception as exc:
+            logger.error(f"Failed to enqueue task: {exc}", exc_info=True)
+            raise HTTPException(status_code=503, detail="Could not enqueue task") from exc
+
+        logger.info(
+            "task_enqueued",
+            extra={
+                "task_id": task.id,
+                "platforms": payload.platforms,
+                "request_id": getattr(request.state, "request_id", "-"),
+            },
+        )
+        return GenerateResponse(task_id=task.id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Unhandled error in generate endpoint: {exc}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get(
