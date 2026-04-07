@@ -15,7 +15,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import redis as _redis_lib
-from fastapi import Depends, FastAPI, HTTPException, Request, Security
+from fastapi import Body, Depends, FastAPI, HTTPException, Request, Security
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, HttpUrl
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -173,7 +173,7 @@ def readiness_check() -> dict:
     dependencies=[Depends(_require_api_key)],
 )
 @limiter.limit("10/minute")
-def generate(request: Request, payload: GenerateRequest) -> GenerateResponse:
+def generate(request: Request, payload: GenerateRequest = Body(...)) -> GenerateResponse:
     """
     Enqueue a video generation job.
 
