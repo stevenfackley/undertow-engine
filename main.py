@@ -4,8 +4,6 @@ Undertow Engine – FastAPI Application
 Exposes POST /api/v1/generate which enqueues a video-generation job via Celery.
 """
 
-from __future__ import annotations
-
 import ipaddress
 import logging
 import os

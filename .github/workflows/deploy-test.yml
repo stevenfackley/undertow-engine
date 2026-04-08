@@ -42,10 +42,12 @@ jobs:
           cache: pip
 
       - name: Install system dependencies
-        run: sudo apt-get install -y ffmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements-test.txt
 
       - name: Lint
         run: ruff check .
