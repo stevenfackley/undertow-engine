@@ -18,6 +18,9 @@ on:
     branches:
       - main
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   # --------------------------------------------------------------------------
   # 1. Build & push Docker image to ECR
@@ -75,20 +78,36 @@ jobs:
         run: |
           set -euo pipefail
 
-          echo "Verifying SSM connectivity..."
-          # Get the first instance that is online and managed by SSM
-          MANAGED_INSTANCE=$(aws ssm describe-instance-information --query "InstanceInformationList[0].InstanceId" --output text)
+          INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
 
-          # Auto-resolve taking precedence over potentially stale secret
-          INSTANCE_ID="$MANAGED_INSTANCE"
-
-          # Only use secret if auto-discovery failed
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ]; then
-            INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
+            echo "Error: PROD_EC2_INSTANCE_ID is missing or still set to a placeholder value."
+            exit 1
           fi
 
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
-            echo "Error: No managed EC2 instances found in SSM and no valid secret provided."
+          if ! [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ ]]; then
+            echo "Error: PROD_EC2_INSTANCE_ID must be a valid EC2 instance ID. Got: $INSTANCE_ID"
+            exit 1
+          fi
+
+          echo "Pre-flight: validating SSM registration and connectivity for instance: $INSTANCE_ID"
+          SSM_INSTANCE_INFO=$(aws ssm describe-instance-information \
+            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
+            --query "InstanceInformationList[0]" \
+            --output json)
+
+          if [ -z "$SSM_INSTANCE_INFO" ] || [ "$SSM_INSTANCE_INFO" = "null" ]; then
+            echo "Error: Instance $INSTANCE_ID is not registered in AWS Systems Manager (SSM)."
+            exit 1
+          fi
+
+          PING_STATUS=$(echo "$SSM_INSTANCE_INFO" | jq -r '.PingStatus // "Unknown"')
+          AGENT_VERSION=$(echo "$SSM_INSTANCE_INFO" | jq -r '.AgentVersion // "Unknown"')
+          LAST_PING=$(echo "$SSM_INSTANCE_INFO" | jq -r '.LastPingDateTime // "Unknown"')
+          echo "SSM pre-flight details: PingStatus=$PING_STATUS, AgentVersion=$AGENT_VERSION, LastPingDateTime=$LAST_PING"
+
+          if [ "$PING_STATUS" != "Online" ]; then
+            echo "Error: Instance $INSTANCE_ID is registered in SSM but not Online (PingStatus=$PING_STATUS)."
             exit 1
           fi
 
