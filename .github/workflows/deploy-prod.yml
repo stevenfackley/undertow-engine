@@ -73,17 +73,24 @@ jobs:
 
       - name: Deploy via SSM Run Command
         run: |
-          # Use configured secret, fallback to first managed instance if placeholder/missing
-          INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
-            echo "Falling back to auto-discovered SSM instance..."
-            INSTANCE_ID=$(aws ssm describe-instance-information --query "InstanceInformationList[0].InstanceId" --output text)
+          echo "Verifying SSM connectivity..."
+          # Get the first instance that is online and managed by SSM
+          MANAGED_INSTANCE=$(aws ssm describe-instance-information --query "InstanceInformationList[0].InstanceId" --output text)
+          
+          # Auto-resolve taking precedence over potentially stale secret
+          INSTANCE_ID="$MANAGED_INSTANCE"
+          
+          # Only use secret if auto-discovery failed
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ]; then
+            INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
           fi
 
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ]; then
-            echo "Error: No managed EC2 instances found in SSM."
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
+            echo "Error: No managed EC2 instances found in SSM and no valid secret provided."
             exit 1
           fi
+
+          echo "Deploying to instance: $INSTANCE_ID"
 
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
