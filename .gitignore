@@ -226,3 +226,9 @@ infra/.terraform.lock.hcl
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# claude settings
+.claude/
+
+# user settings
+settings.local.json
