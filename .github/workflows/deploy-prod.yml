@@ -96,9 +96,15 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
+              "echo \"[DEBUG] Starting deployment script...\"",
+              "uname -a",
+              "id",
+              "ls -ld /opt",
               "mkdir -p /opt/undertow-engine",
               "cd /opt/undertow-engine",
+              "ls -la",
               "if docker compose version >/dev/null 2>&1; then COMPOSE=\"docker compose\"; else COMPOSE=\"docker-compose\"; fi",
+              "echo \"[DEBUG] Using compose: $COMPOSE\"",
               "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml pull",
               "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
             ]' \
