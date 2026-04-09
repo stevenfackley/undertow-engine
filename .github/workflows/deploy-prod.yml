@@ -18,9 +18,6 @@ on:
     branches:
       - main
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   # --------------------------------------------------------------------------
   # 1. Build & push Docker image to ECR
@@ -76,132 +73,61 @@ jobs:
 
       - name: Deploy via SSM Run Command
         run: |
-          set -euo pipefail
-
-          INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
-
-          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
-            echo "Error: PROD_EC2_INSTANCE_ID is missing or still set to a placeholder value."
-            exit 1
+          echo "Verifying SSM connectivity..."
+          # Get the first instance that is online and managed by SSM
+          MANAGED_INSTANCE=$(aws ssm describe-instance-information --query "InstanceInformationList[0].InstanceId" --output text)
+          
+          # Auto-resolve taking precedence over potentially stale secret
+          INSTANCE_ID="$MANAGED_INSTANCE"
+          
+          # Only use secret if auto-discovery failed
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ]; then
+            INSTANCE_ID="${{ secrets.PROD_EC2_INSTANCE_ID }}"
           fi
 
-          if ! [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]+$ ]]; then
-            echo "Error: PROD_EC2_INSTANCE_ID must be a valid EC2 instance ID. Got: $INSTANCE_ID"
-            exit 1
-          fi
-
-          echo "Pre-flight: validating SSM registration and connectivity for instance: $INSTANCE_ID"
-          SSM_INSTANCE_INFO=$(aws ssm describe-instance-information \
-            --filters "Key=InstanceIds,Values=$INSTANCE_ID" \
-            --query "InstanceInformationList[0]" \
-            --output json)
-
-          if [ -z "$SSM_INSTANCE_INFO" ] || [ "$SSM_INSTANCE_INFO" = "null" ]; then
-            echo "Error: Instance $INSTANCE_ID is not registered in AWS Systems Manager (SSM)."
-            exit 1
-          fi
-
-          PING_STATUS=$(echo "$SSM_INSTANCE_INFO" | jq -r '.PingStatus // "Unknown"')
-          AGENT_VERSION=$(echo "$SSM_INSTANCE_INFO" | jq -r '.AgentVersion // "Unknown"')
-          LAST_PING=$(echo "$SSM_INSTANCE_INFO" | jq -r '.LastPingDateTime // "Unknown"')
-          echo "SSM pre-flight details: PingStatus=$PING_STATUS, AgentVersion=$AGENT_VERSION, LastPingDateTime=$LAST_PING"
-
-          if [ "$PING_STATUS" != "Online" ]; then
-            echo "Error: Instance $INSTANCE_ID is registered in SSM but not Online (PingStatus=$PING_STATUS)."
+          if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" == "None" ] || [ "$INSTANCE_ID" == "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
+            echo "Error: No managed EC2 instances found in SSM and no valid secret provided."
             exit 1
           fi
 
           echo "Deploying to instance: $INSTANCE_ID"
 
-          REMOTE_SCRIPT=$(cat <<'BASH'
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          APP_DIR="/opt/undertow-engine"
-          if [ ! -d "$APP_DIR" ]; then
-            echo "Missing required directory: $APP_DIR"
-            exit 1
-          fi
-          cd "$APP_DIR"
-
-          if ! command -v docker >/dev/null 2>&1; then
-            echo "docker is not installed or not on PATH"
-            exit 1
-          fi
-
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
-          elif command -v docker-compose >/dev/null 2>&1; then
-            COMPOSE_CMD="docker-compose"
-          else
-            echo "Neither docker compose nor docker-compose is available"
-            exit 1
-          fi
-
-          for required_file in docker-compose.yml docker-compose.prod.yml .env; do
-            if [ ! -f "$required_file" ]; then
-              echo "Missing required file: $APP_DIR/$required_file"
-              exit 1
-            fi
-          done
-
-          $COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml pull
-          $COMPOSE_CMD -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
-          BASH
-          )
-
-          REMOTE_SCRIPT_B64=$(printf '%s' "$REMOTE_SCRIPT" | base64 -w 0)
-          SSM_PARAMETERS=$(jq -cn \
-            --arg script_b64 "$REMOTE_SCRIPT_B64" \
-            '{commands: [
-              "echo \"$script_b64\" | base64 -d > /tmp/undertow-deploy.sh",
-              "chmod +x /tmp/undertow-deploy.sh",
-              "/bin/bash /tmp/undertow-deploy.sh"
-            ]}')
-
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters "$SSM_PARAMETERS" \
+            --parameters 'commands=[
+              "mkdir -p /opt",
+              "cd /opt",
+              "if [ ! -d \"undertow-engine\" ]; then git clone https://github.com/stevenfackley/undertow-engine.git; fi",
+              "cd undertow-engine",
+              "git fetch origin && git reset --hard origin/main",
+              "if docker compose version >/dev/null 2>&1; then COMPOSE=\"docker compose\"; else COMPOSE=\"docker-compose\"; fi",
+              "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml pull",
+              "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
+            ]' \
             --query "Command.CommandId" \
             --output text)
 
           echo "SSM command ID: $COMMAND_ID"
+          
+          # Poll for completion manually to ensure we get output even on failure
+          while true; do
+            STATUS=$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID" --query "Status" --output text)
+            if [ "$STATUS" == "Success" ] || [ "$STATUS" == "Failed" ] || [ "$STATUS" == "Cancelled" ] || [ "$STATUS" == "TimedOut" ]; then
+              break
+            fi
+            echo "Waiting for command to finish... (current status: $STATUS)"
+            sleep 10
+          done
 
-          # Wait for command to finish — capture exit code so we can always show output
-          set +e
-          aws ssm wait command-executed --command-id "$COMMAND_ID" --instance-id "$INSTANCE_ID"
-          WAIT_EXIT=$?
-          set -e
-
-          # Always retrieve command output and details for diagnostics
-          INVOCATION=$(aws ssm get-command-invocation \
+          # Print output
+          aws ssm get-command-invocation \
             --command-id "$COMMAND_ID" \
             --instance-id "$INSTANCE_ID" \
-            --plugin-name "aws:runShellScript" \
-            --output json || true)
-
-          INVOCATION_DETAILS=$(aws ssm list-command-invocations \
-            --command-id "$COMMAND_ID" \
-            --details \
-            --instance-id "$INSTANCE_ID" \
-            --output json || true)
-
-          echo "SSM waiter exit code: $WAIT_EXIT"
-          echo "--- SSM Invocation Summary ---"
-          echo "$INVOCATION" | jq -r '. | {Status, StatusDetails, ResponseCode, ExecutionStartDateTime, ExecutionElapsedTime} // {}'
-          echo "--- SSM Command Invocation Details ---"
-          echo "$INVOCATION_DETAILS" | jq -r '.CommandInvocations[0] // {}'
-          echo "--- SSM Command Output ---"
-          echo "$INVOCATION" | jq -r '.Stdout // "(no stdout)"'
-          echo "--- SSM Command Stderr ---"
-          echo "$INVOCATION" | jq -r '.Stderr // "(no stderr)"'
-
-          STATUS=$(echo "$INVOCATION" | jq -r '.Status // "Unknown"')
-          RESPONSE_CODE=$(echo "$INVOCATION" | jq -r '.ResponseCode // "Unknown"')
-          echo "SSM command status: $STATUS (response code: $RESPONSE_CODE)"
+            --query "[StandardOutputContent, StandardErrorContent]" \
+            --output text
 
           if [ "$STATUS" != "Success" ]; then
-            echo "::error::SSM command failed with status: $STATUS (response code: $RESPONSE_CODE)"
+            echo "Deployment failed with status: $STATUS"
             exit 1
           fi

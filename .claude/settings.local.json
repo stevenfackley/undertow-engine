@@ -10,7 +10,9 @@
       "Bash(CELERY_ENV=test OPENAI_API_KEY=test-key pytest tests/integration/test_api.py::test_generate_enqueues_task -v)",
       "Bash(python -m pytest tests/integration/test_api.py::test_generate_enqueues_task -v -s)",
       "Bash(python -m pytest -v)",
-      "Bash(python -m ruff check main.py .github/workflows/deploy-prod.yml)"
+      "Bash(python -m ruff check main.py .github/workflows/deploy-prod.yml)",
+      "Bash(cat .github/workflows/*.yml)",
+      "Bash(gh workflow:*)"
     ]
   }
 }
