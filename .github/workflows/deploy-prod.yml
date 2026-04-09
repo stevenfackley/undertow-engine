@@ -96,14 +96,25 @@ jobs:
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
-              "mkdir -p /opt",
-              "cd /opt",
-              "if [ ! -d \"undertow-engine\" ]; then git clone https://github.com/stevenfackley/undertow-engine.git; fi",
-              "cd undertow-engine",
-              "git fetch origin && git reset --hard origin/main",
-              "if docker compose version >/dev/null 2>&1; then COMPOSE=\"docker compose\"; else COMPOSE=\"docker-compose\"; fi",
-              "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml pull",
-              "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans"
+              "bash -c \"
+                set -ex
+                mkdir -p /opt
+                cd /opt
+                if [ ! -d undertow-engine ]; then
+                  git clone https://github.com/stevenfackley/undertow-engine.git
+                fi
+                cd undertow-engine
+                git fetch origin
+                git reset --hard origin/main
+                if docker compose version >/dev/null 2>&1; then
+                  COMPOSE=\\\"docker compose\\\"
+                else
+                  COMPOSE=\\\"docker-compose\\\"
+                fi
+                echo \\\"[DEBUG] Using compose: $COMPOSE\\\"
+                $COMPOSE -f docker-compose.yml -f docker-compose.prod.yml pull
+                $COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+              \""
             ]' \
             --query "Command.CommandId" \
             --output text)
