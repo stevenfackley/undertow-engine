@@ -1,19 +1,6 @@
 # ---------------------------------------------------------------------------
 # .github/workflows/deploy-prod.yml
 # CI/CD pipeline – Production environment
-#
-# Triggers:
-#   • Every push to the `main` branch (i.e. after a PR is merged)
-#
-# Required GitHub secrets:
-#   AWS_OIDC_ROLE_ARN      — from: terraform output github_actions_role_arn
-#   PROD_EC2_INSTANCE_ID   — EC2 instance ID (i-xxxxxxxxxxxx)
-#   TUNNEL_TOKEN           — required for cloudflared
-#
-# Optional GitHub secrets / vars for first-time bootstrap:
-#   OPENAI_API_KEY, API_KEY, REDIS_PASSWORD,
-#   FLOWER_PASSWORD, SUPABASE_SERVICE_KEY
-#   vars.FLOWER_USER, vars.SUPABASE_URL
 # ---------------------------------------------------------------------------
 
 name: Deploy – Production
@@ -84,57 +71,24 @@ jobs:
           fi
 
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ] || [[ "$INSTANCE_ID" == i-xxxxxxxx* ]]; then
-            echo "Error: No online SSM-managed EC2 instance found and no valid fallback secret provided."
+            echo "Error: No online SSM-managed EC2 instance found and no valid secret provided."
             exit 1
           fi
 
           echo "Deploying to instance: $INSTANCE_ID"
 
-          OPENAI_API_KEY_VALUE="${{ secrets.OPENAI_API_KEY }}"
-          API_KEY_VALUE="${{ secrets.API_KEY }}"
-          REDIS_PASSWORD_VALUE="${{ secrets.REDIS_PASSWORD }}"
-          FLOWER_USER_VALUE="${{ vars.FLOWER_USER }}"
-          FLOWER_PASSWORD_VALUE="${{ secrets.FLOWER_PASSWORD }}"
-          SUPABASE_URL_VALUE="${{ vars.SUPABASE_URL }}"
-          SUPABASE_SERVICE_KEY_VALUE="${{ secrets.SUPABASE_SERVICE_KEY }}"
-          TUNNEL_TOKEN_VALUE="${{ secrets.TUNNEL_TOKEN }}"
-
-          if [ -z "$REDIS_PASSWORD_VALUE" ]; then
-            REDIS_PASSWORD_VALUE=$(openssl rand -hex 32)
-          fi
-          if [ -z "$FLOWER_USER_VALUE" ]; then
-            FLOWER_USER_VALUE=admin
-          fi
-          if [ -z "$FLOWER_PASSWORD_VALUE" ]; then
-            FLOWER_PASSWORD_VALUE=$(openssl rand -hex 16)
-          fi
-
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name "AWS-RunShellScript" \
-            --parameters "commands=[
-              \"mkdir -p /opt\",
-              \"cd /opt\",
-              \"if [ ! -d \\\"undertow-engine\\\" ]; then git clone https://github.com/stevenfackley/undertow-engine.git; fi\",
-              \"cd undertow-engine\",
-              \"git fetch origin && git reset --hard origin/main\",
-              \"if [ ! -f .env ]; then cat > .env <<'EOF'
-OPENAI_API_KEY=${OPENAI_API_KEY_VALUE}
-SUPABASE_URL=${SUPABASE_URL_VALUE}
-SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY_VALUE}
-API_KEY=${API_KEY_VALUE}
-REDIS_PASSWORD=${REDIS_PASSWORD_VALUE}
-TUNNEL_TOKEN=${TUNNEL_TOKEN_VALUE}
-FLOWER_USER=${FLOWER_USER_VALUE}
-FLOWER_PASSWORD=${FLOWER_PASSWORD_VALUE}
-CHROMIUM_PROFILE_DIR=/data/chromium-profile
-OUTPUT_DIR=/data/outputs
-LOG_LEVEL=INFO
-EOF
-fi\",
-              \"if docker compose version >/dev/null 2>&1; then COMPOSE=\\\"docker compose\\\"; else COMPOSE=\\\"docker-compose\\\"; fi\",
-              \"$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans\"
-            ]" \
+            --parameters 'commands=[
+              "mkdir -p /opt",
+              "cd /opt",
+              "if [ ! -d \"undertow-engine\" ]; then git clone https://github.com/stevenfackley/undertow-engine.git; fi",
+              "cd undertow-engine",
+              "git fetch origin && git reset --hard origin/main",
+              "if docker compose version >/dev/null 2>&1; then COMPOSE=\"docker compose\"; else COMPOSE=\"docker-compose\"; fi",
+              "$COMPOSE -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans"
+            ]' \
             --query "Command.CommandId" \
             --output text)
 
