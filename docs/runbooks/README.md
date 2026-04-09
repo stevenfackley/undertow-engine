@@ -163,6 +163,8 @@ docker compose exec worker find /data/outputs -name "*.mp4" -mtime +7 -delete
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `OPENAI_API_KEY` | Yes | — | OpenAI API key |
+| `SUPABASE_URL` | Yes | — | Supabase project URL for the `roast_queue` backend |
+| `SUPABASE_SERVICE_KEY` | Yes | — | Supabase service-role key used to read and update queue rows |
 | `REDIS_URL` | No | `redis://redis:6379/0` | Redis connection URL (prod) |
 | `REDIS_TEST_URL` | No | `redis://localhost:6379/1` | Redis URL for test env |
 | `CELERY_ENV` | No | `prod` | Set to `test` to use `REDIS_TEST_URL` |
