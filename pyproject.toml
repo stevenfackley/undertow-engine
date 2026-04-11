@@ -18,3 +18,26 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["F401"]  # unused imports fine in test files
+
+[project]
+name = "undertow"
+version = "0.1.0"
+description = "Undertow Engine"
+requires-python = ">=3.11"
+dependencies = [
+    "celery==5.4.0",
+    "fastapi==0.111.0",
+    "httpx==0.27.0",
+    "limits>=2.3,<4.0",
+    "moviepy==1.0.3",
+    "openai==1.30.1",
+    "playwright==1.44.0",
+    "pydub==0.25.1",
+    "python-json-logger==2.0.7",
+    "python-multipart==0.0.22",
+    "redis==5.0.4",
+    "slowapi==0.1.9",
+    "supabase>=2.7.4",
+    "uvicorn[standard]==0.29.0",
+]
+
