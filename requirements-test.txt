@@ -283,7 +283,7 @@ pyroaring==1.0.4
     # via
     #   -r requirements.txt
     #   pyiceberg
-pytest==8.2.2
+pytest==9.0.3
     # via
     #   -r requirements-test.txt
     #   pytest-httpx
