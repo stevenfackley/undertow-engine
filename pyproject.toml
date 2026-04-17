@@ -34,7 +34,7 @@ dependencies = [
     "playwright==1.44.0",
     "pydub==0.25.1",
     "python-json-logger==2.0.7",
-    "python-multipart==0.0.22",
+    "python-multipart==0.0.26",
     "redis==5.0.4",
     "slowapi==0.1.9",
     "supabase>=2.7.4",

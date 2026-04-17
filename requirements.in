@@ -182,7 +182,7 @@ python-dotenv==1.2.2
     # via uvicorn
 python-json-logger==2.0.7
     # via -r requirements.txt
-python-multipart==0.0.22
+python-multipart==0.0.26
     # via
     #   -r requirements.txt
     #   fastapi
