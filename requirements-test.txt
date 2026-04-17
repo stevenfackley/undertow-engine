@@ -329,7 +329,7 @@ rich-toolkit==0.19.7
     # via
     #   -r requirements.txt
     #   fastapi-cli
-ruff==0.4.7
+ruff==0.15.11
     # via -r requirements-test.txt
 shellingham==1.5.4
     # via
