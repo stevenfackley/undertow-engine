@@ -118,7 +118,7 @@ mdurl==0.1.2
     # via markdown-it-py
 mmh3==5.2.1
     # via pyiceberg
-moviepy==1.0.3
+moviepy==2.2.1
     # via -r requirements.txt
 multidict==6.7.1
     # via yarl
