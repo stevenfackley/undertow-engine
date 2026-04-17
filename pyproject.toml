@@ -38,6 +38,6 @@ dependencies = [
     "redis==5.0.4",
     "slowapi==0.1.9",
     "supabase>=2.7.4",
-    "uvicorn[standard]==0.29.0",
+    "uvicorn[standard]==0.44.0",
 ]
 
