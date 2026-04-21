@@ -1,0 +1,26 @@
+name: Bug report
+description: Something is broken.
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes: { label: Summary }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Repro steps
+      placeholder: |
+        1. …
+        2. …
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected vs actual }
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes: { label: Version / commit }
+  - type: textarea
+    id: logs
+    attributes: { label: Logs, render: shell }

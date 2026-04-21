@@ -1,0 +1,18 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  ci:
+    uses: stevenfackley/gh-actions/.github/workflows/ci-python.yml@v1
+    with:
+      project-name: {{PROJECT_NAME}}
+      python-version: "3.11"
+    secrets: inherit

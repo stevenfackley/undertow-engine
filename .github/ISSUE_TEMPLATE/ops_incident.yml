@@ -1,0 +1,24 @@
+name: Ops incident
+description: Production or deploy-path incident.
+labels: [devops, incident]
+body:
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options: [SEV-1 (outage), SEV-2 (degraded), SEV-3 (recovered)]
+    validations: { required: true }
+  - type: textarea
+    id: timeline
+    attributes: { label: Timeline (UTC) }
+    validations: { required: true }
+  - type: textarea
+    id: impact
+    attributes: { label: Impact }
+    validations: { required: true }
+  - type: textarea
+    id: mitigation
+    attributes: { label: Mitigation }
+  - type: textarea
+    id: followups
+    attributes: { label: Follow-ups }

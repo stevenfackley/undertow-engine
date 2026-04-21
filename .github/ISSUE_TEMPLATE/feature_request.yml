@@ -1,0 +1,23 @@
+name: Feature request
+description: Propose a new capability.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes: { label: Problem }
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes: { label: Proposed solution }
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes: { label: Alternatives considered }
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: Requires an ADR
+        - label: Touches deploy / CI
+        - label: New dependency
