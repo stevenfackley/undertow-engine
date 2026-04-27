@@ -190,7 +190,7 @@ pyyaml==6.0.3
     # via uvicorn
 realtime==2.28.3
     # via supabase
-redis==5.0.4
+redis==7.4.0
     # via -r requirements.txt
 requests==2.33.1
     # via
