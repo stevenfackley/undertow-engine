@@ -273,7 +273,7 @@ pyparsing==3.3.2
     # via
     #   -r requirements.in
     #   pyiceberg
-pyroaring==1.0.4
+pyroaring==1.1.0
     # via
     #   -r requirements.in
     #   pyiceberg
@@ -288,7 +288,7 @@ python-dotenv==1.2.2
     #   uvicorn
 python-json-logger==4.1.0
     # via -r requirements.in
-python-multipart==0.0.26
+python-multipart==0.0.27
     # via
     #   -r requirements.in
     #   fastapi
