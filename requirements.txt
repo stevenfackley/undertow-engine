@@ -288,7 +288,7 @@ python-dotenv==1.2.2
     #   uvicorn
 python-json-logger==4.1.0
     # via -r requirements.in
-python-multipart==0.0.26
+python-multipart==0.0.27
     # via
     #   -r requirements.in
     #   fastapi
@@ -389,7 +389,7 @@ typing-inspection==0.4.2
     # via
     #   -r requirements.in
     #   pydantic
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   -r requirements.in
     #   kombu
