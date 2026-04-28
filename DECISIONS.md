@@ -25,3 +25,23 @@ ADR log. Append-only.
   - **pytest 9:** `pytest.warns()` stricter; `--strict-markers` is default. Unknown markers now error.
   - **python-multipart 0.0.26:** module renamed `multipart` → `python_multipart` (fastapi handles the import; direct imports break).
 - Surface in our code: `main.py` uses `FastAPI`, `Depends`, `HTTPException`, `APIKeyHeader`, `BaseHTTPMiddleware`, `Response` — all stable. `tests/integration/test_api.py` uses `TestClient` — stable across starlette 1.0.
+
+---
+
+## 2026-04-28 — Dependabot sweep: redis 5→7, cryptography 46→47, plus minors
+
+**Status:** accepted (awareness-only stub per saved sweep policy)
+**Context:** 8 open Dependabot PRs swept. Minors/patches: click 8.3.2→8.3.3, idna 3.11→3.13, pyroaring 1.0.4→1.1.0, tzdata 2026.1→2026.2, typer 0.24.1→0.25.0, uvicorn 0.44.0→0.46.0. Two majors warranted ADR notes (this entry).
+**Decision:** Auto-merge per policy. Trust semver + GHSA `first_patched_version`; watch deploy workflow post-merge; revert if it breaks.
+**Consequences — majors to watch:**
+- **redis 5.0.4 → 7.4.0** (skipped 6.x):
+  - **redis-py 6.0:** `Redis.connection_pool` is now private; use `Redis.from_url()` / explicit pool wiring. `client.execute_command()` return-type strictness tightened.
+  - **redis-py 7.0:** drops Python 3.8/3.9; we're on 3.11 → fine. Async cluster API `RedisCluster.execute_command()` signature change. Connection retry kwargs renamed (`retry_on_timeout` → `Retry` instance).
+  - Surface in our code: grep `redis` in repo before next deploy. If we use `from redis import Redis` synchronously, behavior is mostly compatible. If async (`redis.asyncio`), retry config may need a touch.
+- **cryptography 46.0.7 → 47.0.0:**
+  - Removes deprecated `Hash.copy()` returning identical state-machine semantics — minor edge case.
+  - Drops legacy OpenSSL 1.1 binary wheels; modern Linux runtimes fine.
+  - X.509 builder API: small return-type tightening on extension constructors.
+  - Surface: only used transitively by FastAPI/starlette/httpx TLS chain — no direct usage in `main.py`. Risk: low.
+**Why no review:** private/solo repo, deploy workflow is the real build, revert is cheap.
+
