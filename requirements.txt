@@ -144,7 +144,7 @@ hyperframe==6.1.0
     # via
     #   -r requirements.in
     #   h2
-idna==3.11
+idna==3.13
     # via
     #   -r requirements.in
     #   anyio
