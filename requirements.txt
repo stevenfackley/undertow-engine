@@ -389,7 +389,7 @@ typing-inspection==0.4.2
     # via
     #   -r requirements.in
     #   pydantic
-tzdata==2026.1
+tzdata==2026.2
     # via
     #   -r requirements.in
     #   kombu
