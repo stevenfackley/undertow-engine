@@ -35,7 +35,7 @@ dependencies = [
     "pydub==0.25.1",
     "python-json-logger==4.1.0",
     "python-multipart==0.0.27",
-    "redis==5.0.4",
+    "redis==7.4.0",
     "slowapi==0.1.9",
     "starlette>=0.47.2",
     "supabase>=2.7.4",
