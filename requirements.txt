@@ -207,7 +207,7 @@ orjson==3.11.8
     # via
     #   -r requirements.in
     #   fastapi
-packaging==24.2
+packaging==26.2
     # via
     #   -r requirements.in
     #   deprecation
