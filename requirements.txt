@@ -101,7 +101,7 @@ fastapi-cli==0.0.24
     # via
     #   -r requirements.in
     #   fastapi
-fsspec==2026.3.0
+fsspec==2026.4.0
     # via
     #   -r requirements.in
     #   pyiceberg

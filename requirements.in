@@ -63,7 +63,7 @@ fastapi==0.111.0
     # via -r requirements.txt
 fastapi-cli==0.0.24
     # via fastapi
-fsspec==2026.3.0
+fsspec==2026.4.0
     # via pyiceberg
 greenlet==3.0.3
     # via playwright
