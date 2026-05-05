@@ -49,3 +49,10 @@ test = [
     "ruff",
 ]
 
+# Tell setuptools which top-level dir is the Python package.
+# Without this, `pip install -e .` (used by ci-python.yml@v1) hits
+# "Multiple top-level packages discovered in a flat-layout" because
+# the repo has sibling non-package dirs: conductor/, deploy/, infra/, docs/, tests/.
+[tool.setuptools.packages.find]
+include = ["app*"]
+
