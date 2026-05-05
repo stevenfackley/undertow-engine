@@ -130,7 +130,7 @@ openai==2.32.0
     # via -r requirements.txt
 orjson==3.11.8
     # via fastapi
-packaging==24.2
+packaging==26.2
     # via
     #   deprecation
     #   kombu
