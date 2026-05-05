@@ -370,7 +370,7 @@ tqdm==4.67.3
     #   moviepy
     #   openai
     #   proglog
-typer==0.25.0
+typer==0.25.1
     # via
     #   -r requirements.in
     #   fastapi-cli
