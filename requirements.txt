@@ -424,7 +424,7 @@ watchfiles==1.1.1
     # via
     #   -r requirements.in
     #   uvicorn
-wcwidth==0.6.0
+wcwidth==0.7.0
     # via
     #   -r requirements.in
     #   prompt-toolkit
