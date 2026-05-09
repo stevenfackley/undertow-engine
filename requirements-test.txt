@@ -65,7 +65,7 @@ fastapi==0.136.0
     # via undertow
 fsspec==2026.3.0
     # via pyiceberg
-greenlet==3.0.3
+greenlet==3.5.0
     # via playwright
 h11==0.16.0
     # via
@@ -103,6 +103,8 @@ imageio-ffmpeg==0.6.0
     # via moviepy
 iniconfig==2.3.0
     # via pytest
+jiter==0.14.0
+    # via openai
 kombu==5.6.2
     # via celery
 limits==3.14.1
@@ -123,7 +125,7 @@ numpy==2.4.4
     # via
     #   imageio
     #   moviepy
-openai==1.30.1
+openai==2.34.0
     # via undertow
 packaging==24.2
     # via
@@ -133,7 +135,7 @@ packaging==24.2
     #   pytest
 pillow==12.2.0
     # via imageio
-playwright==1.44.0
+playwright==1.59.0
     # via undertow
 pluggy==1.6.0
     # via pytest
@@ -160,7 +162,7 @@ pydantic-core==2.41.5
     # via pydantic
 pydub==0.25.1
     # via undertow
-pyee==11.1.0
+pyee==13.0.1
     # via playwright
 pygments==2.20.0
     # via
@@ -188,13 +190,13 @@ python-dotenv==1.2.2
     # via uvicorn
 python-json-logger==4.1.0
     # via undertow
-python-multipart==0.0.26
+python-multipart==0.0.27
     # via undertow
 pyyaml==6.0.3
     # via uvicorn
 realtime==2.28.3
     # via supabase
-redis==5.0.4
+redis==7.4.0
     # via undertow
 requests==2.33.1
     # via
@@ -257,7 +259,7 @@ tzlocal==5.3.1
     # via celery
 urllib3==2.6.3
     # via requests
-uvicorn==0.44.0
+uvicorn==0.46.0
     # via undertow
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
