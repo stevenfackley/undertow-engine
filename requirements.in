@@ -126,7 +126,7 @@ numpy==2.4.4
     # via
     #   imageio
     #   moviepy
-openai==2.34.0
+openai==2.36.0
     # via -r requirements.txt
 orjson==3.11.8
     # via fastapi
