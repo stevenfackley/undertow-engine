@@ -3,6 +3,17 @@
 # Shared by test and production override files.
 # ---------------------------------------------------------------------------
 
+# Cap json-file logging at 50 MB × 3 rotations per container.
+# Without this, long-running containers (especially Celery workers driving
+# headless Chromium) can accumulate multi-GB log files and exhaust the root
+# volume — exactly what happened on prod 2026-05-11 (single worker container
+# wrote 13 GiB of JSON log over 30 days, wedged the box for two days).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "50m"
+    max-file: "3"
+
 services:
   # --------------------------------------------------------------------------
   # FastAPI web API
@@ -28,6 +39,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging: *default-logging
 
   # --------------------------------------------------------------------------
   # Celery worker
@@ -54,6 +66,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging: *default-logging
 
   # --------------------------------------------------------------------------
   # Flower – Celery monitoring UI  (http://localhost:5555)
@@ -66,6 +79,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging: *default-logging
 
   # --------------------------------------------------------------------------
   # Celery beat scheduler (periodic tasks)
@@ -88,6 +102,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+    logging: *default-logging
 
   # --------------------------------------------------------------------------
   # Redis broker / result backend
@@ -103,6 +118,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    logging: *default-logging
 
 volumes:
   chromium_profile:
