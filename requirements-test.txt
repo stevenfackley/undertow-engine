@@ -61,7 +61,7 @@ deprecation==2.1.0
     #   storage3
 distro==1.9.0
     # via openai
-fastapi==0.136.0
+fastapi==0.136.1
     # via undertow
 fsspec==2026.4.0
     # via pyiceberg
