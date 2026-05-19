@@ -117,7 +117,7 @@ moviepy==1.0.3
     # via undertow
 multidict==6.7.1
     # via yarl
-numpy==2.4.4
+numpy==2.4.6
     # via
     #   imageio
     #   moviepy
