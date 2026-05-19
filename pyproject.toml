@@ -31,7 +31,7 @@ dependencies = [
     "limits>=2.3,<6.0",
     "moviepy==1.0.3",
     "openai==2.36.0",
-    "playwright==1.59.0",
+    "playwright==1.60.0",
     "pydub==0.25.1",
     "python-json-logger==4.1.0",
     "python-multipart==0.0.28",

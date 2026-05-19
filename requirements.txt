@@ -130,7 +130,7 @@ packaging==26.2
     #   limits
 pillow==12.2.0
     # via imageio
-playwright==1.59.0
+playwright==1.60.0
     # via undertow
 postgrest==2.30.0
     # via supabase
