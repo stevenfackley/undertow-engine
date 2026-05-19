@@ -174,7 +174,7 @@ pyjwt==2.12.1
     # via supabase-auth
 pyparsing==3.3.2
     # via pyiceberg
-pyroaring==1.0.4
+pyroaring==1.1.0
     # via pyiceberg
 pytest==9.0.3
     # via
