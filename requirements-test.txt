@@ -139,7 +139,7 @@ playwright==1.59.0
     # via undertow
 pluggy==1.6.0
     # via pytest
-postgrest==2.28.3
+postgrest==2.30.0
     # via supabase
 proglog==0.1.12
     # via moviepy
