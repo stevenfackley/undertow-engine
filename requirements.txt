@@ -138,7 +138,7 @@ proglog==0.1.12
     # via moviepy
 prompt-toolkit==3.0.52
     # via click-repl
-propcache==0.4.1
+propcache==0.5.2
     # via yarl
 pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
     # via cffi
