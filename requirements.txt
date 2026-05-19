@@ -123,7 +123,7 @@ numpy==2.4.4
     #   moviepy
 openai==2.34.0
     # via undertow
-packaging==24.2
+packaging==26.2
     # via
     #   deprecation
     #   kombu
