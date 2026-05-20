@@ -222,7 +222,7 @@ strenum==0.4.15
     # via supabase-functions
 strictyaml==1.7.3
     # via pyiceberg
-supabase==2.28.3
+supabase==2.30.0
     # via undertow
 supabase-auth==2.28.3
     # via supabase
