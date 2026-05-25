@@ -276,7 +276,7 @@ websockets==16.0
     # via
     #   realtime
     #   uvicorn
-wrapt==2.1.2
+wrapt==2.2.1
     # via deprecated
 yarl==1.23.0
     # via
