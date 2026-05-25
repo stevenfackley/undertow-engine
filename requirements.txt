@@ -255,7 +255,7 @@ watchfiles==1.2.0
     # via uvicorn
 wcwidth==0.6.0
     # via prompt-toolkit
-websockets==15.0.1
+websockets==16.0
     # via
     #   realtime
     #   uvicorn
