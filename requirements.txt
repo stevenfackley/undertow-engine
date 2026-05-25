@@ -121,7 +121,7 @@ numpy==2.4.6
     # via
     #   imageio
     #   moviepy
-openai==2.34.0
+openai==2.38.0
     # via undertow
 packaging==26.2
     # via
