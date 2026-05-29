@@ -22,7 +22,7 @@ def test_healthz(client):
     tc, _ = client
     resp = tc.get("/healthz")
     assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
+    assert resp.json() == {"status": "ok", "qav": "watching"}
 
 
 # ---------------------------------------------------------------------------

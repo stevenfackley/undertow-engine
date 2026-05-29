@@ -28,6 +28,20 @@ from worker import celery_app, process_video_payload
 configure_logging(os.environ.get("LOG_LEVEL", "INFO"))
 logger = logging.getLogger("undertow.api")
 
+# Startup banner — Qavren mascot signature. See content/brand/qav-mascot.md in the
+# qavren-solutions-site repo for the voice rules. Banner is logged (never printed,
+# per CLAUDE.md) so it appears in stdout under uvicorn but respects production
+# logging discipline.
+logger.info(
+    "undertow_starting\n"
+    "      ___\n"
+    "    .'   `.___\n"
+    "   / O      __>      qav is watching\n"
+    "  |       _/         undertow-engine — built by Qavren\n"
+    "   \\     /\n"
+    "    `--'\n"
+)
+
 # ---------------------------------------------------------------------------
 # Rate limiting
 # ---------------------------------------------------------------------------
@@ -150,7 +164,7 @@ class JobStatusResponse(BaseModel):
 @app.get("/healthz", tags=["health"])
 def health_check() -> dict:
     """Liveness probe — returns immediately without touching external services."""
-    return {"status": "ok"}
+    return {"status": "ok", "qav": "watching"}
 
 
 @app.get("/readyz", tags=["health"])
