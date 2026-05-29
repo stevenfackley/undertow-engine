@@ -151,7 +151,7 @@ pydantic==2.13.4
     #   realtime
     #   storage3
     #   supabase-auth
-pydantic-core==2.41.5
+pydantic-core==2.46.4
     # via pydantic
 pydub==0.25.1
     # via undertow
@@ -187,7 +187,7 @@ requests==2.34.2
     # via
     #   moviepy
     #   pyiceberg
-rich==15.0.0
+rich==14.3.3
     # via pyiceberg
 six==1.17.0
     # via python-dateutil
@@ -255,7 +255,7 @@ watchfiles==1.2.0
     # via uvicorn
 wcwidth==0.6.0
     # via prompt-toolkit
-websockets==16.0
+websockets==15.0.1
     # via
     #   realtime
     #   uvicorn
