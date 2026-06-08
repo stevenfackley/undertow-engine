@@ -224,7 +224,7 @@ strictyaml==1.7.3
     # via pyiceberg
 supabase==2.30.1
     # via undertow
-supabase-auth==2.30.0
+supabase-auth==2.31.0
     # via supabase
 supabase-functions==2.30.1
     # via supabase
