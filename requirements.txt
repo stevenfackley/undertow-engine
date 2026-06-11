@@ -132,7 +132,7 @@ pillow==12.2.0
     # via imageio
 playwright==1.60.0
     # via undertow
-postgrest==2.30.1
+postgrest==2.31.0
     # via supabase
 proglog==0.1.12
     # via moviepy
