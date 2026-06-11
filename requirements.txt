@@ -199,7 +199,7 @@ starlette==1.2.1
     # via
     #   fastapi
     #   undertow
-storage3==2.30.0
+storage3==2.31.0
     # via supabase
 strenum==0.4.15
     # via supabase-functions
