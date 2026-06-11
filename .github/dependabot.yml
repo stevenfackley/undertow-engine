@@ -14,6 +14,10 @@ updates:
       # Docker build (2026-06-11, core 2.47.0 vs pydantic 2.13.4). Let core
       # move only when a pydantic bump drags it.
       - dependency-name: "pydantic-core"
+      # pyiceberg 0.11.x caps rich<15. Block rich majors until pyiceberg
+      # supports 15 (2026-06-11, deploy ResolutionImpossible).
+      - dependency-name: "rich"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /
