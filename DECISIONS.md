@@ -45,3 +45,19 @@ ADR log. Append-only.
   - Surface: only used transitively by FastAPI/starlette/httpx TLS chain — no direct usage in `main.py`. Risk: low.
 **Why no review:** private/solo repo, deploy workflow is the real build, revert is cheap.
 
+
+## 2026-06-10 — Dependabot sweep: redis 7.4→8.0, rich 14→15, plus minors
+
+**Context:** 10-PR sweep (#94–#103) merged in one pass: redis 8.0.0, rich 15.0.0
+(majors), starlette 1.2.1, uvicorn 0.49.0, openai 2.41.0, pyjwt 2.13.0,
+wcwidth 0.8.1, supabase trio 2.31.0.
+**Consequences — majors to watch:**
+- **redis 7.4.0 → 8.0.0:** direct first-party usage is a single health-check
+  `redis.from_url(...).ping()` in `main.py:175` — stable API. Real exposure is
+  transitive via celery/kombu broker+backend; CI install + pytest green means
+  kombu's constraint range accepts 8.x. Watch Celery worker logs on first prod
+  deploy for connection/retry-shape changes.
+- **rich 14.3.3 → 15.0.0:** zero direct imports; only consumed by fastapi-cli's
+  console output. Cosmetic blast radius.
+**Why no review:** private/solo repo, deploy workflow is the real build, revert
+is cheap.
