@@ -175,7 +175,7 @@ python-dotenv==1.2.2
     # via uvicorn
 python-json-logger==4.1.0
     # via undertow
-python-multipart==0.0.30
+python-multipart==0.0.32
     # via undertow
 pyyaml==6.0.3
     # via uvicorn
