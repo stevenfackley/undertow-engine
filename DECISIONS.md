@@ -61,3 +61,14 @@ wcwidth 0.8.1, supabase trio 2.31.0.
   console output. Cosmetic blast radius.
 **Why no review:** private/solo repo, deploy workflow is the real build, revert
 is cheap.
+
+**2026-06-11 correction:** rich 15 was NOT cosmetic — pyiceberg 0.11.x caps
+`rich<15`, so the prod Docker build hit ResolutionImpossible. Reverted to
+14.3.3 with a dependabot major-ignore until pyiceberg lifts the cap. Same
+deploy also surfaced: pydantic-core must move only with pydantic (standalone
+bump → 2.47.0 vs pydantic 2.13.4's exact 2.46.4 pin), and the supabase python
+family (supabase / realtime / supabase-functions / storage3 / supabase-auth /
+postgrest) is exact-pinned by the parent — Dependabot bumped 3 of 5 children,
+leaving the parent unsatisfiable. Lesson: after merging a multi-PR pip sweep,
+run one full `uv pip install --dry-run -r requirements.txt` resolve — pip
+surfaces conflicts one at a time, a local resolve surfaces them all at once.
