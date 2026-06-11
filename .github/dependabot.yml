@@ -9,6 +9,11 @@ updates:
       # honor transitive constraints. Pin until moviepy is upgraded or replaced.
       - dependency-name: "decorator"
         update-types: ["version-update:semver-major"]
+      # pydantic-core is version-locked to pydantic (exact == pin upstream).
+      # Standalone core bumps outrun pydantic and break pip resolution at
+      # Docker build (2026-06-11, core 2.47.0 vs pydantic 2.13.4). Let core
+      # move only when a pydantic bump drags it.
+      - dependency-name: "pydantic-core"
 
   - package-ecosystem: docker
     directory: /
