@@ -194,7 +194,7 @@ python-multipart==0.0.30
     # via undertow
 pyyaml==6.0.3
     # via uvicorn
-realtime==2.30.0
+realtime==2.31.0
     # via supabase
 redis==8.0.0
     # via undertow
