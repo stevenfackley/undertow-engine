@@ -196,7 +196,7 @@ pyyaml==6.0.3
     # via uvicorn
 realtime==2.30.0
     # via supabase
-redis==7.4.0
+redis==8.0.0
     # via undertow
 requests==2.34.2
     # via
