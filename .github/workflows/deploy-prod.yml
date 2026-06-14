@@ -78,9 +78,12 @@ jobs:
           # sorted first (it was landing deploys on the synap server). The
           # instance is tagged App=undertow in infra/ec2.tf.
           echo "Resolving undertow prod instance by tag App=undertow..."
+          # SSM forbids mixing a tag filter with any other filter, so keep only
+          # the tag filter server-side and select Online instances in the query.
           MANAGED_INSTANCE=$(aws ssm describe-instance-information \
-            --filters "Key=tag:App,Values=undertow" "Key=PingStatus,Values=Online" \
-            --query "InstanceInformationList[0].InstanceId" --output text)
+            --filters "Key=tag:App,Values=undertow" \
+            --query "InstanceInformationList[?PingStatus=='Online'].InstanceId | [0]" \
+            --output text 2>/dev/null || echo None)
 
           INSTANCE_ID="$MANAGED_INSTANCE"
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ]; then
