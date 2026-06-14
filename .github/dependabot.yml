@@ -18,6 +18,16 @@ updates:
       # supports 15 (2026-06-11, deploy ResolutionImpossible).
       - dependency-name: "rich"
         update-types: ["version-update:semver-major"]
+      # pyiceberg 0.11.x caps cachetools<7. Block cachetools majors until
+      # pyiceberg supports 7 (2026-06-13, deploy ResolutionImpossible at
+      # Docker build: cachetools 7.1.4 vs pyiceberg 0.11.1).
+      - dependency-name: "cachetools"
+        update-types: ["version-update:semver-major"]
+      # supabase realtime 2.31.x caps websockets<16. Block websockets majors
+      # until realtime widens (2026-06-13, deploy ResolutionImpossible at
+      # Docker build: websockets 16.0 vs realtime 2.31.0).
+      - dependency-name: "websockets"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /
