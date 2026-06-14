@@ -73,8 +73,14 @@ jobs:
 
       - name: Deploy via SSM Run Command
         run: |
-          echo "Verifying SSM connectivity..."
-          MANAGED_INSTANCE=$(aws ssm describe-instance-information --query "InstanceInformationList[?PingStatus=='Online'] | [0].InstanceId" --output text)
+          # Target the dedicated undertow host by tag, not the first online SSM
+          # instance in the account. The old `[0]` query grabbed whatever box
+          # sorted first (it was landing deploys on the synap server). The
+          # instance is tagged App=undertow in infra/ec2.tf.
+          echo "Resolving undertow prod instance by tag App=undertow..."
+          MANAGED_INSTANCE=$(aws ssm describe-instance-information \
+            --filters "Key=tag:App,Values=undertow" "Key=PingStatus,Values=Online" \
+            --query "InstanceInformationList[0].InstanceId" --output text)
 
           INSTANCE_ID="$MANAGED_INSTANCE"
           if [ -z "$INSTANCE_ID" ] || [ "$INSTANCE_ID" = "None" ] || [ "$INSTANCE_ID" = "null" ]; then
