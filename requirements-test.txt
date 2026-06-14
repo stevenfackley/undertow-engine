@@ -204,7 +204,7 @@ requests==2.34.2
     #   pyiceberg
 rich==15.0.0
     # via pyiceberg
-ruff==0.15.16
+ruff==0.15.17
     # via undertow
 six==1.17.0
     # via python-dateutil
