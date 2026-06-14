@@ -1,8 +1,9 @@
 """
 AI Scripting Module
 -------------------
-Sends a topic/text prompt to OpenAI GPT-4o to generate a short, fast-paced
-video script with a 3-second hook opening and an infinite-loop ending.
+Sends a topic/text prompt to an OpenAI chat model to generate a short,
+fast-paced video script with a 3-second hook opening and an infinite-loop
+ending. Model defaults to gpt-4.1-mini; override with OPENAI_CHAT_MODEL.
 """
 
 from __future__ import annotations
@@ -33,7 +34,9 @@ SYSTEM_PROMPT = (
 
 def generate_script(topic: str, max_tokens: int = 300) -> str:
     """
-    Generate a short-form video script for *topic* using GPT-4o.
+    Generate a short-form video script for *topic*.
+
+    Uses the model named by ``OPENAI_CHAT_MODEL`` (default ``gpt-4.1-mini``).
 
     Parameters
     ----------
@@ -49,7 +52,7 @@ def generate_script(topic: str, max_tokens: int = 300) -> str:
     """
     client = _get_client()
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4.1-mini"),
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Write a script about: {topic}"},
