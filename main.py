@@ -20,7 +20,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import FileResponse, Response
 
 from app.logging_config import configure_logging
 from worker import celery_app, process_video_payload
@@ -159,6 +159,15 @@ class JobStatusResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+_STATIC_DIR = Path(__file__).parent / "static"
+
+
+@app.get("/", include_in_schema=False)
+def console() -> FileResponse:
+    """Serve the test console (single-file UI) at the tunnel root."""
+    return FileResponse(_STATIC_DIR / "index.html")
 
 
 @app.get("/healthz", tags=["health"])
