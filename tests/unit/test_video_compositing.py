@@ -1,9 +1,9 @@
-"""Unit tests for app.video_compositing."""
+"""Unit tests for app.video_compositing (ffmpeg + ASS pipeline)."""
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+import shutil
+import subprocess
 
 import pytest
 
@@ -14,12 +14,18 @@ from app.video_compositing import (
     NEGATIVE_COLOR,
     TARGET_H,
     TARGET_W,
+    _ass_escape,
+    _build_ass,
+    _build_ffmpeg_cmd,
+    _format_ass_time,
+    _random_start_offset,
     _word_color,
 )
 
 # ---------------------------------------------------------------------------
 # _word_color
 # ---------------------------------------------------------------------------
+
 
 def test_word_color_negative_word():
     assert _word_color("never") == NEGATIVE_COLOR
@@ -44,237 +50,208 @@ def test_word_color_strips_punctuation():
 
 
 # ---------------------------------------------------------------------------
-# _to_portrait
-# ---------------------------------------------------------------------------
-
-def _mock_clip(w: int, h: int) -> MagicMock:
-    clip = MagicMock()
-    clip.size = (w, h)
-    scaled = MagicMock()
-    cropped = MagicMock()
-    clip.resize.return_value = scaled
-    scaled.crop.return_value = cropped
-    scaled.size = (w, h)  # default; overridden per test
-    return clip, scaled, cropped
-
-
-def test_to_portrait_landscape_resizes_to_height():
-    """1920×1080 landscape → fit height to 1920, crop width."""
-    clip, scaled, cropped = _mock_clip(1920, 1080)
-    scaled.size = (3413, TARGET_H)
-
-    result = module._to_portrait(clip)
-
-    clip.resize.assert_called_once_with(height=TARGET_H)
-    scaled.crop.assert_called_once()
-    assert result is cropped
-
-
-def test_to_portrait_landscape_crops_to_target_width():
-    clip, scaled, cropped = _mock_clip(1920, 1080)
-    scaled.size = (3413, TARGET_H)
-
-    module._to_portrait(clip)
-
-    crop_kwargs = scaled.crop.call_args.kwargs
-    assert crop_kwargs["x2"] - crop_kwargs["x1"] == TARGET_W
-
-
-def test_to_portrait_tall_resizes_to_width():
-    """600×1200 portrait (narrower than 9:16) → fit width to 1080, crop height."""
-    clip, scaled, cropped = _mock_clip(600, 1200)
-    scaled.size = (TARGET_W, 2160)
-
-    result = module._to_portrait(clip)
-
-    clip.resize.assert_called_once_with(width=TARGET_W)
-    scaled.crop.assert_called_once()
-    assert result is cropped
-
-
-def test_to_portrait_tall_crops_to_target_height():
-    clip, scaled, cropped = _mock_clip(600, 1200)
-    scaled.size = (TARGET_W, 2160)
-
-    module._to_portrait(clip)
-
-    crop_kwargs = scaled.crop.call_args.kwargs
-    assert crop_kwargs["y2"] - crop_kwargs["y1"] == TARGET_H
-
-
-# ---------------------------------------------------------------------------
-# Pillow / MoviePy resize compatibility (real, un-mocked)
-#
-# The _to_portrait tests mock clip.resize, so they cannot catch a failure
-# *inside* moviepy's resizer — which is exactly how the Pillow 10+ removal of
-# Image.ANTIALIAS reached prod (2026-06-14): a job died at video_compositing
-# with "module 'PIL.Image' has no attribute 'ANTIALIAS'". These exercise the
-# real resize path so any future Pillow/MoviePy resampling break fails in CI
-# instead of at render time. (Importing `module` applies the shim.)
-# ---------------------------------------------------------------------------
-
-def test_pillow_antialias_compat_shim_applied():
-    """Importing video_compositing must restore Image.ANTIALIAS for moviepy 1.0.3."""
-    from PIL import Image
-
-    assert hasattr(Image, "ANTIALIAS")
-
-
-def test_real_moviepy_resize_runs_on_installed_pillow():
-    """A genuine moviepy resize (the op that broke) must succeed on this Pillow."""
-    from moviepy.editor import ColorClip
-
-    clip = ColorClip(size=(64, 64), color=(0, 0, 0), duration=0.1)
-    frame = clip.resize(0.5).get_frame(0)  # forces the PIL resize using Image.ANTIALIAS
-
-    assert frame.shape[0] == 32 and frame.shape[1] == 32
-
-
-def test_to_portrait_exact_9_16_still_calls_resize():
-    """Exact 9:16 input is treated as portrait (not landscape), resizes to width."""
-    clip, scaled, cropped = _mock_clip(TARGET_W, TARGET_H)
-    scaled.size = (TARGET_W, TARGET_H)
-
-    module._to_portrait(clip)
-
-    clip.resize.assert_called_once_with(width=TARGET_W)
-
-
-# ---------------------------------------------------------------------------
 # _random_start_offset
 # ---------------------------------------------------------------------------
 
+
 def test_random_start_offset_within_range():
     for _ in range(30):
-        offset = module._random_start_offset(clip_duration=10.0, audio_duration=5.0)
+        offset = _random_start_offset(clip_duration=10.0, audio_duration=5.0)
         assert 0.0 <= offset <= 5.0
 
 
 def test_random_start_offset_zero_when_clip_shorter():
-    assert module._random_start_offset(clip_duration=3.0, audio_duration=5.0) == 0.0
+    assert _random_start_offset(clip_duration=3.0, audio_duration=5.0) == 0.0
 
 
 def test_random_start_offset_zero_when_exact_fit():
-    assert module._random_start_offset(clip_duration=5.0, audio_duration=5.0) == 0.0
+    assert _random_start_offset(clip_duration=5.0, audio_duration=5.0) == 0.0
 
 
 # ---------------------------------------------------------------------------
-# _build_text_clips
+# _format_ass_time
 # ---------------------------------------------------------------------------
 
-def test_build_text_clips_skips_zero_duration():
-    timestamps = [
-        {"word": "fast", "start": 0.0, "end": 0.0},
-        {"word": "go", "start": 0.5, "end": 0.8},
+
+def test_format_ass_time_zero():
+    assert _format_ass_time(0.0) == "0:00:00.00"
+
+
+def test_format_ass_time_fractional():
+    assert _format_ass_time(1.5) == "0:00:01.50"
+
+
+def test_format_ass_time_minutes_and_centiseconds():
+    assert _format_ass_time(65.25) == "0:01:05.25"
+
+
+def test_format_ass_time_hours():
+    assert _format_ass_time(3661.0) == "1:01:01.00"
+
+
+def test_format_ass_time_negative_clamped():
+    assert _format_ass_time(-3.0) == "0:00:00.00"
+
+
+# ---------------------------------------------------------------------------
+# _ass_escape
+# ---------------------------------------------------------------------------
+
+
+def test_ass_escape_strips_control_chars():
+    assert _ass_escape("{\\bad}word") == "badword"
+
+
+def test_ass_escape_trims_and_flattens_newlines():
+    assert _ass_escape("  hi\nthere  ") == "hi there"
+
+
+# ---------------------------------------------------------------------------
+# _build_ass
+# ---------------------------------------------------------------------------
+
+
+def test_build_ass_has_header_and_montserrat_style():
+    ass = _build_ass([])
+    assert "[Script Info]" in ass
+    assert f"PlayResX: {TARGET_W}" in ass
+    assert f"PlayResY: {TARGET_H}" in ass
+    assert "Montserrat Black" in ass
+    assert "Dialogue:" not in ass  # no words → no events
+
+
+def test_build_ass_one_dialogue_per_positive_duration_word():
+    ts = [
+        {"word": "go", "start": 0.0, "end": 0.5},
+        {"word": "now", "start": 0.5, "end": 1.0},
     ]
-    with patch("app.video_compositing.TextClip") as mock_tc:
-        mock_clip = MagicMock()
-        mock_clip.set_start.return_value = mock_clip
-        mock_clip.set_duration.return_value = mock_clip
-        mock_clip.set_position.return_value = mock_clip
-        mock_tc.return_value = mock_clip
-
-        clips = module._build_text_clips(timestamps, (1080, 1920))
-
-    assert len(clips) == 1
-    mock_tc.assert_called_once()
-    assert mock_tc.call_args.args[0] == "go"
+    ass = _build_ass(ts)
+    assert ass.count("Dialogue:") == 2
 
 
-def test_build_text_clips_negative_duration_skipped():
-    timestamps = [{"word": "bad", "start": 1.0, "end": 0.5}]
-    with patch("app.video_compositing.TextClip") as mock_tc:
-        clips = module._build_text_clips(timestamps, (1080, 1920))
-    assert clips == []
-    mock_tc.assert_not_called()
+def test_build_ass_skips_zero_and_negative_duration():
+    ts = [
+        {"word": "skip", "start": 0.0, "end": 0.0},
+        {"word": "back", "start": 1.0, "end": 0.5},
+        {"word": "keep", "start": 1.0, "end": 1.5},
+    ]
+    ass = _build_ass(ts)
+    assert ass.count("Dialogue:") == 1
+    assert "keep" in ass
 
 
-def test_build_text_clips_correct_color_for_negative():
-    timestamps = [{"word": "fail", "start": 0.0, "end": 0.5}]
-    with patch("app.video_compositing.TextClip") as mock_tc:
-        mock_clip = MagicMock()
-        mock_clip.set_start.return_value = mock_clip
-        mock_clip.set_duration.return_value = mock_clip
-        mock_clip.set_position.return_value = mock_clip
-        mock_tc.return_value = mock_clip
+def test_build_ass_colours_by_category():
+    ts = [
+        {"word": "fail", "start": 0.0, "end": 0.5},  # negative → red
+        {"word": "ship", "start": 0.5, "end": 1.0},  # action → yellow
+        {"word": "the", "start": 1.0, "end": 1.5},  # default → white
+    ]
+    ass = _build_ass(ts)
+    assert "\\c&H0000FF&" in ass  # red (BGR)
+    assert "\\c&H00FFFF&" in ass  # yellow
+    assert "\\c&HFFFFFF&" in ass  # white
 
-        module._build_text_clips(timestamps, (1080, 1920))
 
-    assert mock_tc.call_args.kwargs["color"] == NEGATIVE_COLOR
+def test_build_ass_centres_word_at_75_percent_height():
+    ts = [{"word": "hi", "start": 0.0, "end": 0.5}]
+    ass = _build_ass(ts)
+    expected_x = TARGET_W // 2
+    expected_y = int(round(TARGET_H * module.TEXT_Y_FRACTION))
+    assert f"\\an5\\pos({expected_x},{expected_y})" in ass
+
+
+def test_build_ass_escapes_word_braces():
+    ts = [{"word": "ev{i}l", "start": 0.0, "end": 0.5}]
+    ass = _build_ass(ts)
+    # the only braces left are the ASS override block, not from the word
+    dialogue = [line for line in ass.splitlines() if line.startswith("Dialogue:")][0]
+    assert dialogue.endswith("evil")
 
 
 # ---------------------------------------------------------------------------
-# compose_video
+# _build_ffmpeg_cmd
 # ---------------------------------------------------------------------------
 
-def test_compose_video_calls_write_videofile(tmp_path):
-    audio = tmp_path / "audio.mp3"
-    audio.write_bytes(b"fake")
-    output = tmp_path / "out.mp4"
-    timestamps = [{"word": "go", "start": 0.0, "end": 0.5}]
 
-    mock_audio_clip = MagicMock()
-    mock_audio_clip.duration = 5.0
-
-    mock_bg_clip = MagicMock()
-    mock_bg_clip.duration = 10.0  # longer than audio — no looping
-    mock_bg_clip.size = (TARGET_W, TARGET_H)
-    mock_bg_clip.subclip.return_value = mock_bg_clip
-    mock_bg_clip.set_audio.return_value = mock_bg_clip
-
-    mock_final = MagicMock()
-
-    with patch("app.video_compositing.AudioFileClip", return_value=mock_audio_clip):
-        with patch("app.video_compositing._download_video"):
-            with patch("app.video_compositing.VideoFileClip", return_value=mock_bg_clip):
-                with patch("app.video_compositing._to_portrait", return_value=mock_bg_clip):
-                    with patch("app.video_compositing._build_text_clips", return_value=[]):
-                        with patch("app.video_compositing.CompositeVideoClip", return_value=mock_final):
-                            result = module.compose_video(
-                                background_video_url="http://example.com/bg.mp4",
-                                audio_path=audio,
-                                word_timestamps=timestamps,
-                                output_path=output,
-                            )
-
-    mock_final.write_videofile.assert_called_once()
-    assert result == output
+def _cmd(**overrides):
+    args = dict(
+        bg_path="/tmp/bg.mp4",
+        audio_path="/tmp/a.mp3",
+        ass_path="/tmp/c.ass",
+        offset=0.0,
+        duration=5.0,
+        loop=False,
+        output_path="/out/x.mp4",
+    )
+    args.update(overrides)
+    return _build_ffmpeg_cmd(**args)
 
 
-def test_compose_video_loops_short_clip(tmp_path):
-    """Background shorter than audio → concatenate_videoclips should be called."""
-    audio = tmp_path / "audio.mp3"
-    audio.write_bytes(b"fake")
+def test_ffmpeg_cmd_scales_and_crops_to_portrait():
+    fc = _cmd()
+    filtergraph = fc[fc.index("-filter_complex") + 1]
+    assert f"scale={TARGET_W}:{TARGET_H}:force_original_aspect_ratio=increase" in filtergraph
+    assert f"crop={TARGET_W}:{TARGET_H}" in filtergraph
+    assert "subtitles=" in filtergraph
 
-    mock_audio_clip = MagicMock()
-    mock_audio_clip.duration = 10.0
 
-    mock_bg_clip = MagicMock()
-    mock_bg_clip.duration = 3.0  # shorter than audio
-    mock_bg_clip.size = (TARGET_W, TARGET_H)
-    mock_bg_clip.subclip.return_value = mock_bg_clip
-    mock_bg_clip.set_audio.return_value = mock_bg_clip
+def test_ffmpeg_cmd_maps_video_and_audio():
+    fc = _cmd()
+    assert fc[fc.index("-map") : fc.index("-map") + 2] == ["-map", "[v]"]
+    assert "1:a" in fc  # audio mapped from the second input
 
-    mock_looped = MagicMock()
-    mock_looped.duration = 12.0
-    mock_looped.size = (TARGET_W, TARGET_H)
-    mock_looped.subclip.return_value = mock_looped
-    mock_looped.set_audio.return_value = mock_looped
 
-    mock_final = MagicMock()
+def test_ffmpeg_cmd_codecs_and_duration():
+    fc = _cmd(duration=7.5)
+    assert "libx264" in fc
+    assert "aac" in fc
+    assert fc[fc.index("-t") + 1] == "7.500"
+    assert fc[-1] == "/out/x.mp4"
 
-    with patch("app.video_compositing.AudioFileClip", return_value=mock_audio_clip):
-        with patch("app.video_compositing._download_video"):
-            with patch("app.video_compositing.VideoFileClip", return_value=mock_bg_clip):
-                with patch("app.video_compositing.concatenate_videoclips", return_value=mock_looped) as mock_concat:
-                    with patch("app.video_compositing._to_portrait", return_value=mock_looped):
-                        with patch("app.video_compositing._build_text_clips", return_value=[]):
-                            with patch("app.video_compositing.CompositeVideoClip", return_value=mock_final):
-                                module.compose_video(
-                                    background_video_url="http://example.com/bg.mp4",
-                                    audio_path=audio,
-                                    word_timestamps=[],
-                                    output_path=tmp_path / "out.mp4",
-                                )
 
-    mock_concat.assert_called_once()
+def test_ffmpeg_cmd_loops_when_flagged():
+    assert "-stream_loop" in _cmd(loop=True)
+    assert "-stream_loop" not in _cmd(loop=False)
+
+
+def test_ffmpeg_cmd_seeks_only_with_offset():
+    assert "-ss" in _cmd(offset=3.2)
+    assert "-ss" not in _cmd(offset=0.0)
+
+
+# ---------------------------------------------------------------------------
+# Real render smoke test
+#
+# Replaces the moviepy migration's whole class of breakage: exercises the
+# actual ffmpeg filtergraph (scale/crop + libass subtitle burn + audio mux +
+# encode) end-to-end on generated inputs. Skipped when ffmpeg isn't on PATH so
+# the unit suite stays hermetic; runs in any env that has ffmpeg (incl. the
+# production image).
+# ---------------------------------------------------------------------------
+
+_HAS_FFMPEG = shutil.which("ffmpeg") is not None and shutil.which("ffprobe") is not None
+
+
+@pytest.mark.skipif(not _HAS_FFMPEG, reason="ffmpeg/ffprobe not installed")
+def test_real_ffmpeg_render_produces_valid_mp4(tmp_path):
+    bg = tmp_path / "bg.mp4"
+    audio = tmp_path / "a.wav"
+    ass = tmp_path / "c.ass"
+    out = tmp_path / "out.mp4"
+
+    # 2s 320x240 test pattern + 1s tone, via ffmpeg's built-in sources.
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "testsrc=size=320x240:rate=30:duration=2", str(bg)],
+        check=True, capture_output=True,
+    )
+    subprocess.run(
+        ["ffmpeg", "-y", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", str(audio)],
+        check=True, capture_output=True,
+    )
+    ass.write_text(_build_ass([{"word": "test", "start": 0.0, "end": 1.0}]), encoding="utf-8")
+
+    cmd = _build_ffmpeg_cmd(bg, audio, ass, offset=0.0, duration=1.0, loop=False, output_path=out)
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr[-1500:]
+    assert out.exists() and out.stat().st_size > 0
+    assert abs(module._probe_duration(out) - 1.0) < 0.3

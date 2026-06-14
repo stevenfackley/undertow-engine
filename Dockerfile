@@ -1,17 +1,16 @@
 # ---------------------------------------------------------------------------
 # Undertow Engine – Dockerfile
-# Python 3.11 slim + ffmpeg + ImageMagick + Playwright OS dependencies
+# Python 3.11 slim + ffmpeg + Playwright OS dependencies
 # ---------------------------------------------------------------------------
 
 FROM python:3.11-slim AS base
 
 # --- System dependencies ---------------------------------------------------
-# ffmpeg       : required by MoviePy / pydub for audio/video processing
-# imagemagick  : required by MoviePy for TextClip rendering
-# Playwright   : Chromium headless OS-level libraries
+# ffmpeg          : video compositing (libass burns the ASS captions) + pydub audio
+# fonts-montserrat: caption typeface, resolved by libass via fontconfig
+# Playwright      : Chromium headless OS-level libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
-        imagemagick \
         # Playwright / Chromium headless dependencies
         libnss3 \
         libnspr4 \
@@ -38,11 +37,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         wget \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-
-# --- ImageMagick policy: allow MoviePy to use the full policy set ----------
-# The default Debian policy blocks many operations needed by MoviePy.
-RUN sed -i 's/<policy domain="path" rights="none" pattern="@\*"\/>/<!-- &-->/' \
-        /etc/ImageMagick-6/policy.xml || true
 
 # --- Application directory -------------------------------------------------
 WORKDIR /app
