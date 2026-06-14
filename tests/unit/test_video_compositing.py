@@ -102,6 +102,34 @@ def test_to_portrait_tall_crops_to_target_height():
     assert crop_kwargs["y2"] - crop_kwargs["y1"] == TARGET_H
 
 
+# ---------------------------------------------------------------------------
+# Pillow / MoviePy resize compatibility (real, un-mocked)
+#
+# The _to_portrait tests mock clip.resize, so they cannot catch a failure
+# *inside* moviepy's resizer — which is exactly how the Pillow 10+ removal of
+# Image.ANTIALIAS reached prod (2026-06-14): a job died at video_compositing
+# with "module 'PIL.Image' has no attribute 'ANTIALIAS'". These exercise the
+# real resize path so any future Pillow/MoviePy resampling break fails in CI
+# instead of at render time. (Importing `module` applies the shim.)
+# ---------------------------------------------------------------------------
+
+def test_pillow_antialias_compat_shim_applied():
+    """Importing video_compositing must restore Image.ANTIALIAS for moviepy 1.0.3."""
+    from PIL import Image
+
+    assert hasattr(Image, "ANTIALIAS")
+
+
+def test_real_moviepy_resize_runs_on_installed_pillow():
+    """A genuine moviepy resize (the op that broke) must succeed on this Pillow."""
+    from moviepy.editor import ColorClip
+
+    clip = ColorClip(size=(64, 64), color=(0, 0, 0), duration=0.1)
+    frame = clip.resize(0.5).get_frame(0)  # forces the PIL resize using Image.ANTIALIAS
+
+    assert frame.shape[0] == 32 and frame.shape[1] == 32
+
+
 def test_to_portrait_exact_9_16_still_calls_resize():
     """Exact 9:16 input is treated as portrait (not landscape), resizes to width."""
     clip, scaled, cropped = _mock_clip(TARGET_W, TARGET_H)
