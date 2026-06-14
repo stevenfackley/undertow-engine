@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>UNDERTOW // console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:        #05080c;
+    --bg-2:      #070b11;
+    --panel:     #0a1016;
+    --panel-2:   #0c141c;
+    --line:      #15212c;
+    --line-2:    #1d2e3b;
+    --ink:       #cad8e2;
+    --ink-dim:   #71889a;
+    --ink-faint: #44566380;
+    --tide:      #34e3c4;
+    --tide-deep: #0fb6a0;
+    --signal:    #5ea8ff;
+    --amber:     #f6b144;
+    --coral:     #ff6b6b;
+    --violet:    #9d7bff;
+    --grad-glow: radial-gradient(120% 80% at 80% -10%, #0c3d3a55 0%, transparent 55%),
+                 radial-gradient(90% 70% at 0% 110%, #0a2a4855 0%, transparent 50%);
+    --shadow:    0 24px 60px -28px #000d, 0 2px 0 0 #ffffff06 inset;
+    --r:         3px;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* ---- atmosphere ------------------------------------------------------ */
+  .bg { position: fixed; inset: 0; z-index: -3; background: var(--grad-glow), var(--bg); }
+  .bg::after { /* grain */
+    content: ""; position: absolute; inset: 0; opacity: .035; mix-blend-mode: screen;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .currents { position: fixed; inset: 0; z-index: -2; overflow: hidden; opacity: .5; }
+  .currents span {
+    position: absolute; left: -20%; width: 140%; height: 1px;
+    background: linear-gradient(90deg, transparent, var(--tide-deep), transparent);
+    opacity: .12; animation: drift 18s linear infinite;
+  }
+  .currents span:nth-child(1){ top: 22%; animation-duration: 21s; }
+  .currents span:nth-child(2){ top: 47%; animation-duration: 27s; animation-direction: reverse; opacity:.08; }
+  .currents span:nth-child(3){ top: 68%; animation-duration: 16s; }
+  .currents span:nth-child(4){ top: 85%; animation-duration: 31s; animation-direction: reverse; opacity:.06; }
+  @keyframes drift { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+  .vignette { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    box-shadow: inset 0 0 220px 40px #000a; }
+
+  /* ---- shell ----------------------------------------------------------- */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 30px 26px 70px; }
+
+  header.top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 20px; padding-bottom: 18px; border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+    animation: rise .7s cubic-bezier(.2,.7,.2,1) both;
+  }
+  .brand { display: flex; align-items: baseline; gap: 14px; }
+  .brand h1 {
+    font-family: "Syne", sans-serif; font-weight: 800; letter-spacing: -.02em;
+    font-size: clamp(26px, 4vw, 42px); margin: 0; line-height: .95;
+    color: var(--ink);
+  }
+  .brand h1 b { color: var(--tide); font-weight: 800; }
+  .brand .sub {
+    font-size: 11px; letter-spacing: .34em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .watch {
+    display: flex; align-items: center; gap: 9px; font-size: 11px;
+    letter-spacing: .22em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  .eye {
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--coral); box-shadow: 0 0 0 0 #ff6b6b66;
+    animation: blink 3.4s steps(1) infinite, glow 1.8s ease-in-out infinite;
+  }
+  .eye.live { background: var(--tide); }
+  @keyframes blink { 0%,92%,100%{opacity:1} 94%,98%{opacity:.15} }
+  @keyframes glow { 0%,100%{box-shadow:0 0 0 0 #34e3c400} 50%{box-shadow:0 0 12px 2px #34e3c455} }
+
+  /* ---- panels ---------------------------------------------------------- */
+  .panel {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-2) 100%);
+    border: 1px solid var(--line); border-radius: var(--r);
+    box-shadow: var(--shadow);
+    position: relative;
+  }
+  .panel::before { /* corner ticks */
+    content:""; position:absolute; top:-1px; left:-1px; width:12px; height:12px;
+    border-top:1px solid var(--tide-deep); border-left:1px solid var(--tide-deep); opacity:.6;
+  }
+  .panel-h {
+    display:flex; align-items:center; gap:10px; padding:13px 16px;
+    border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.26em;
+    text-transform:uppercase; color:var(--ink-dim);
+  }
+  .panel-h .idx { color: var(--tide-deep); }
+  .panel-b { padding: 18px 16px; }
+
+  .deck { margin-top: 22px; animation: rise .7s .05s cubic-bezier(.2,.7,.2,1) both; }
+  .grid { display:grid; grid-template-columns: 1.05fr 1fr; gap: 22px; margin-top: 22px;
+    animation: rise .7s .12s cubic-bezier(.2,.7,.2,1) both; }
+  @media (max-width: 860px){ .grid { grid-template-columns: 1fr; } }
+  @keyframes rise { from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none} }
+
+  /* ---- connection deck ------------------------------------------------- */
+  .deck .panel-b { display:grid; grid-template-columns: 1fr 1.4fr auto; gap: 14px; align-items:end; }
+  @media (max-width: 720px){ .deck .panel-b { grid-template-columns: 1fr; } }
+
+  label { display:block; font-size:10.5px; letter-spacing:.18em; text-transform:uppercase;
+    color: var(--ink-dim); margin-bottom: 7px; }
+  label .opt { color: var(--ink-faint); text-transform:none; letter-spacing:0; }
+
+  input[type=text], input[type=url], input[type=password], textarea, select {
+    width:100%; background: var(--bg); color: var(--ink);
+    border:1px solid var(--line-2); border-radius: var(--r);
+    font-family: inherit; font-size:13px; padding: 10px 12px; outline:none;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  input::placeholder, textarea::placeholder { color: var(--ink-faint); }
+  input:focus, textarea:focus, select:focus {
+    border-color: var(--tide-deep);
+    box-shadow: 0 0 0 1px var(--tide-deep), 0 0 18px -6px var(--tide);
+    background: var(--panel-2);
+  }
+  textarea { resize: vertical; min-height: 84px; line-height:1.6; }
+  .field + .field { margin-top: 15px; }
+
+  .key-wrap { position: relative; }
+  .key-wrap button.peek {
+    position:absolute; right:6px; top:50%; transform:translateY(-50%);
+    background:none; border:none; color:var(--ink-dim); cursor:pointer;
+    font-family:inherit; font-size:10px; letter-spacing:.1em; padding:6px;
+  }
+  .key-wrap button.peek:hover { color: var(--tide); }
+
+  /* buttons */
+  .btn {
+    appearance:none; cursor:pointer; font-family:inherit; font-size:12px;
+    letter-spacing:.12em; text-transform:uppercase; font-weight:500;
+    border:1px solid var(--line-2); border-radius: var(--r);
+    background: var(--panel-2); color: var(--ink);
+    padding: 11px 18px; transition: all .16s; white-space:nowrap;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .btn:hover { border-color: var(--tide-deep); color:#fff; box-shadow: 0 0 22px -8px var(--tide); }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary {
+    background: linear-gradient(180deg, var(--tide) 0%, var(--tide-deep) 100%);
+    color:#03110f; border-color: var(--tide); font-weight:600;
+  }
+  .btn.primary:hover { box-shadow: 0 0 30px -6px var(--tide); filter:brightness(1.06); }
+  .btn.ghost { background:transparent; }
+  .btn.danger:hover { border-color: var(--coral); color: var(--coral); box-shadow:0 0 22px -8px var(--coral); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; box-shadow:none; transform:none; }
+  .btn .spin { width:11px; height:11px; border:2px solid #ffffff40; border-top-color:#03110f;
+    border-radius:50%; animation:rot .7s linear infinite; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+
+  /* health chips */
+  .health { display:flex; gap:8px; align-items:center; }
+  .chip {
+    display:inline-flex; align-items:center; gap:7px; font-size:10.5px;
+    letter-spacing:.16em; text-transform:uppercase; color:var(--ink-dim);
+    border:1px solid var(--line); border-radius:100px; padding:7px 12px;
+    background: var(--bg);
+  }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--ink-faint);
+    transition: background .2s, box-shadow .2s; }
+  .dot.ok { background: var(--tide); box-shadow:0 0 9px 1px #34e3c466; }
+  .dot.bad { background: var(--coral); box-shadow:0 0 9px 1px #ff6b6b55; }
+  .dot.wait { background: var(--amber); animation: glow2 1s infinite; }
+  @keyframes glow2 { 0%,100%{opacity:.4} 50%{opacity:1} }
+
+  /* platforms */
+  .platforms { display:flex; gap:10px; }
+  .plat {
+    flex:1; cursor:pointer; user-select:none; text-align:center;
+    border:1px solid var(--line-2); border-radius:var(--r); padding:11px 8px;
+    font-size:12px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim);
+    transition: all .15s; position:relative;
+  }
+  .plat input { position:absolute; opacity:0; pointer-events:none; }
+  .plat:hover { border-color: var(--line-2); color: var(--ink); }
+  .plat.on { border-color: var(--tide-deep); color: var(--tide); background:#0c1c1c;
+    box-shadow: inset 0 0 22px -12px var(--tide); }
+
+  /* ---- job tracker ----------------------------------------------------- */
+  .status-row { display:flex; align-items:center; justify-content:space-between; gap:12px;
+    margin-bottom:18px; flex-wrap:wrap; }
+  .pill {
+    font-size:11px; letter-spacing:.2em; text-transform:uppercase; font-weight:600;
+    padding:7px 14px; border-radius:100px; border:1px solid var(--line-2);
+    color:var(--ink-dim); background:var(--bg);
+  }
+  .pill[data-s="queued"],.pill[data-s="pending"]{ color:var(--ink-dim); }
+  .pill[data-s="started"],.pill[data-s="progress"]{ color:var(--signal); border-color:#244a73; background:#091421; }
+  .pill[data-s="complete"]{ color:var(--tide); border-color:var(--tide-deep); background:#08201c; }
+  .pill[data-s="failed"]{ color:var(--coral); border-color:#5a2a2a; background:#1f0d0d; }
+
+  .taskid { font-size:12px; color:var(--ink-dim); display:flex; align-items:center; gap:8px; }
+  .taskid b { color:var(--ink); font-weight:500; }
+  .copy { background:none; border:none; color:var(--ink-dim); cursor:pointer; font-family:inherit;
+    font-size:10px; letter-spacing:.1em; }
+  .copy:hover { color: var(--tide); }
+
+  /* pipeline */
+  .pipe { display:flex; flex-direction:column; gap:2px; margin: 6px 0 8px; }
+  .stage { display:flex; align-items:center; gap:13px; padding:9px 4px; position:relative; }
+  .stage:not(:last-child)::before {
+    content:""; position:absolute; left:8px; top:30px; bottom:-2px; width:1px;
+    background: var(--line-2);
+  }
+  .stage .node {
+    width:17px; height:17px; border-radius:50%; flex:none;
+    border:1px solid var(--line-2); background:var(--bg); position:relative; z-index:1;
+    transition: all .25s;
+  }
+  .stage .nm { font-size:12px; color:var(--ink-faint); letter-spacing:.04em; transition:color .25s; }
+  .stage .tag { margin-left:auto; font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--ink-faint); }
+  .stage.done .node { background: var(--tide-deep); border-color: var(--tide-deep); }
+  .stage.done .nm { color: var(--ink-dim); }
+  .stage.active .node { background: var(--signal); border-color: var(--signal);
+    box-shadow: 0 0 0 4px #5ea8ff22, 0 0 16px 1px #5ea8ff66; animation: pulse 1.3s ease-in-out infinite; }
+  .stage.active .nm { color:#fff; }
+  .stage.active .tag { color: var(--signal); }
+  .stage.failed .node { background: var(--coral); border-color: var(--coral); box-shadow:0 0 14px 1px #ff6b6b66; }
+  .stage.failed .nm { color: var(--coral); }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 4px #5ea8ff22,0 0 16px 1px #5ea8ff44} 50%{box-shadow:0 0 0 6px #5ea8ff10,0 0 22px 3px #5ea8ff88} }
+
+  .result {
+    margin-top:14px; padding:12px 14px; border:1px dashed var(--line-2); border-radius:var(--r);
+    font-size:12px; line-height:1.7; word-break:break-all; display:none;
+  }
+  .result.show { display:block; }
+  .result.ok { border-color: var(--tide-deep); color: var(--ink); background:#08201c40; }
+  .result.err { border-color:#5a2a2a; color:#ffb4b4; background:#1f0d0d40; }
+  .result span.k { color: var(--ink-dim); }
+
+  .empty { text-align:center; color:var(--ink-faint); padding:26px 10px; font-size:12px; letter-spacing:.04em; }
+
+  /* ---- console log ----------------------------------------------------- */
+  .logwrap { margin-top:22px; animation: rise .7s .18s cubic-bezier(.2,.7,.2,1) both; }
+  .logwrap .panel-h { justify-content:space-between; }
+  .log {
+    max-height: 280px; overflow-y:auto; padding: 12px 16px; font-size:12px;
+    background: #04070a;
+  }
+  .log .line { display:flex; gap:12px; padding:3px 0; border-bottom:1px solid #0c141c80; }
+  .log .ts { color: var(--ink-faint); flex:none; }
+  .log .verb { flex:none; font-weight:600; letter-spacing:.06em; min-width:48px; }
+  .log .verb.GET{color:var(--signal)} .log .verb.POST{color:var(--tide)}
+  .log .verb.DELETE{color:var(--amber)} .log .verb.SYS{color:var(--violet)}
+  .log .msg { color: var(--ink-dim); word-break:break-all; }
+  .log .msg b { color: var(--ink); font-weight:500; }
+  .log .code { margin-left:6px; font-weight:600; }
+  .log .code.ok{color:var(--tide)} .log .code.warn{color:var(--amber)} .log .code.err{color:var(--coral)}
+  .log::-webkit-scrollbar{ width:8px } .log::-webkit-scrollbar-thumb{ background:#16242f; border-radius:4px }
+
+  footer { margin-top:28px; text-align:center; color:var(--ink-faint); font-size:11px;
+    letter-spacing:.14em; text-transform:uppercase; }
+  footer b { color: var(--tide-deep); }
+  .hint { font-size:11px; color:var(--ink-faint); margin-top:8px; line-height:1.6; }
+  a { color: var(--tide-deep); text-decoration:none; } a:hover { color: var(--tide); }
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="currents"><span></span><span></span><span></span><span></span></div>
+<div class="vignette"></div>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>UNDER<b>TOW</b></h1>
+      <div>
+        <div class="sub">engine console</div>
+      </div>
+    </div>
+    <div class="watch"><span class="eye" id="eye"></span><span id="watchTxt">qav is watching</span></div>
+  </header>
+
+  <!-- CONNECTION DECK -->
+  <section class="panel deck">
+    <div class="panel-h"><span class="idx">01 /</span> connection</div>
+    <div class="panel-b">
+      <div class="field">
+        <label>endpoint <span class="opt">· base url</span></label>
+        <input type="text" id="base" placeholder="(same origin)" autocomplete="off" />
+      </div>
+      <div class="field">
+        <label>X-API-Key <span class="opt">· stored locally</span></label>
+        <div class="key-wrap">
+          <input type="password" id="apikey" placeholder="paste your API_KEY" autocomplete="off" />
+          <button class="peek" id="peek" type="button">show</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="health">
+          <span class="chip"><span class="dot" id="dotLive"></span> live</span>
+          <span class="chip"><span class="dot" id="dotReady"></span> redis</span>
+          <button class="btn ghost" id="ping" type="button">ping</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <!-- GENERATE -->
+    <section class="panel">
+      <div class="panel-h"><span class="idx">02 /</span> dispatch job</div>
+      <div class="panel-b">
+        <div class="field">
+          <label>text <span class="opt">· topic for the scriptwriter</span></label>
+          <textarea id="text" placeholder="3 things every developer should know about Docker">3 things every developer should know about Docker</textarea>
+        </div>
+        <div class="field">
+          <label>background_video_url <span class="opt">· public http(s), not private</span></label>
+          <input type="url" id="bg" placeholder="https://cdn.example.com/gameplay.mp4" />
+        </div>
+        <div class="field">
+          <label>caption <span class="opt">· optional</span></label>
+          <input type="text" id="caption" placeholder="Drop a 🔥 if this helped. #devtips" />
+        </div>
+        <div class="field">
+          <label>platforms</label>
+          <div class="platforms" id="platforms">
+            <label class="plat on"><input type="checkbox" value="tiktok" checked /> tiktok</label>
+            <label class="plat"><input type="checkbox" value="instagram" /> instagram</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>callback_url <span class="opt">· optional</span></label>
+          <input type="url" id="callback" placeholder="https://your.app/webhook" />
+        </div>
+        <div class="field" style="margin-top:18px; display:flex; gap:10px;">
+          <button class="btn primary" id="dispatch" type="button">▸ dispatch</button>
+          <button class="btn ghost" id="clear" type="button">reset</button>
+        </div>
+        <div class="hint">POST <code>/api/v1/generate</code> · rate-limited 10/min · SSRF guard rejects private hosts.</div>
+      </div>
+    </section>
+
+    <!-- TRACKER -->
+    <section class="panel">
+      <div class="panel-h"><span class="idx">03 /</span> job tracker</div>
+      <div class="panel-b">
+        <div class="field" style="display:flex; gap:10px; align-items:end;">
+          <div style="flex:1">
+            <label>task_id</label>
+            <input type="text" id="taskInput" placeholder="paste or auto-filled on dispatch" autocomplete="off" />
+          </div>
+          <button class="btn" id="track" type="button">track</button>
+        </div>
+
+        <div id="trackerBody" style="margin-top:18px; display:none;">
+          <div class="status-row">
+            <span class="pill" id="pill" data-s="pending">idle</span>
+            <span class="taskid">id <b id="tid">—</b><button class="copy" id="copyId" type="button">copy</button></span>
+          </div>
+          <div class="pipe" id="pipe">
+            <div class="stage" data-step="scripting"><span class="node"></span><span class="nm">scripting</span><span class="tag">gpt</span></div>
+            <div class="stage" data-step="audio_processing"><span class="node"></span><span class="nm">audio_processing</span><span class="tag">tts</span></div>
+            <div class="stage" data-step="timestamp_extraction"><span class="node"></span><span class="nm">timestamp_extraction</span><span class="tag">whisper</span></div>
+            <div class="stage" data-step="video_compositing"><span class="node"></span><span class="nm">video_compositing</span><span class="tag">moviepy</span></div>
+            <div class="stage" data-step="publishing"><span class="node"></span><span class="nm">publishing</span><span class="tag">playwright</span></div>
+          </div>
+          <div class="result" id="result"></div>
+          <div class="field" style="margin-top:16px; display:flex; gap:10px;">
+            <button class="btn ghost" id="poll" type="button">⟳ auto-poll: off</button>
+            <button class="btn danger" id="revoke" type="button">revoke</button>
+          </div>
+        </div>
+        <div class="empty" id="trackerEmpty">no job tracked yet — dispatch one or paste a task_id.</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- LOG -->
+  <section class="panel logwrap">
+    <div class="panel-h"><span><span class="idx">04 /</span> response stream</span><button class="copy" id="clearLog" type="button">clear</button></div>
+    <div class="log" id="log"></div>
+  </section>
+
+  <footer>undertow.roastandresolve.com · <b>qav</b> is watching</footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STEPS = ["scripting","audio_processing","timestamp_extraction","video_compositing","publishing"];
+  const LS = "undertow.console";
+  let pollTimer = null, currentTask = null;
+
+  // ---- persistence ----
+  const saved = JSON.parse(localStorage.getItem(LS) || "{}");
+  if (saved.base) $("base").value = saved.base;
+  if (saved.key)  $("apikey").value = saved.key;
+  const persist = () => localStorage.setItem(LS, JSON.stringify({ base: $("base").value.trim(), key: $("apikey").value }));
+  $("base").addEventListener("input", persist);
+  $("apikey").addEventListener("input", persist);
+
+  const baseUrl = () => $("base").value.trim().replace(/\/$/, "");
+  const headers = () => {
+    const h = { "Content-Type": "application/json" };
+    const k = $("apikey").value.trim();
+    if (k) h["X-API-Key"] = k;
+    return h;
+  };
+
+  // ---- log ----
+  const pad = (n) => String(n).padStart(2, "0");
+  function log(verb, msg, code) {
+    const d = new Date();
+    const ts = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    let cls = "ok";
+    if (code >= 500 || code === "ERR") cls = "err";
+    else if (code >= 400) cls = "warn";
+    const codeHtml = code != null ? `<span class="code ${cls}">${code}</span>` : "";
+    const line = document.createElement("div");
+    line.className = "line";
+    line.innerHTML = `<span class="ts">${ts}</span><span class="verb ${verb}">${verb}</span><span class="msg">${msg}${codeHtml}</span>`;
+    const el = $("log"); el.appendChild(line); el.scrollTop = el.scrollHeight;
+  }
+  $("clearLog").onclick = () => ($("log").innerHTML = "");
+
+  async function call(method, path, body) {
+    const url = baseUrl() + path;
+    try {
+      const res = await fetch(url, { method, headers: headers(), body: body ? JSON.stringify(body) : undefined });
+      let data = null; try { data = await res.json(); } catch {}
+      return { ok: res.ok, status: res.status, data };
+    } catch (e) {
+      log("SYS", `<b>network error</b> → ${path} · ${e.message}`, "ERR");
+      return { ok: false, status: 0, data: null, netErr: true };
+    }
+  }
+
+  // ---- health ----
+  function setDot(el, state) { el.className = "dot " + state; }
+  async function ping() {
+    setDot($("dotLive"), "wait"); setDot($("dotReady"), "wait");
+    const live = await call("GET", "/healthz");
+    if (live.ok) { setDot($("dotLive"), "ok"); $("eye").classList.add("live"); $("watchTxt").textContent = "qav is watching"; }
+    else { setDot($("dotLive"), "bad"); $("eye").classList.remove("live"); }
+    log("GET", `<b>/healthz</b> ${live.data ? JSON.stringify(live.data) : ""}`, live.status || "ERR");
+    const ready = await call("GET", "/readyz");
+    setDot($("dotReady"), ready.ok ? "ok" : "bad");
+    log("GET", `<b>/readyz</b> ${ready.data ? JSON.stringify(ready.data) : ""}`, ready.status || "ERR");
+  }
+  $("ping").onclick = ping;
+
+  // ---- platforms ----
+  $("platforms").querySelectorAll(".plat").forEach((p) => {
+    const cb = p.querySelector("input");
+    p.addEventListener("click", (e) => { if (e.target !== cb) cb.checked = !cb.checked; p.classList.toggle("on", cb.checked); });
+  });
+  const selectedPlatforms = () =>
+    [...$("platforms").querySelectorAll("input:checked")].map((i) => i.value);
+
+  $("peek").onclick = () => {
+    const f = $("apikey");
+    f.type = f.type === "password" ? "text" : "password";
+    $("peek").textContent = f.type === "password" ? "show" : "hide";
+  };
+
+  // ---- dispatch ----
+  $("dispatch").onclick = async () => {
+    const btn = $("dispatch");
+    const payload = {
+      text: $("text").value.trim(),
+      background_video_url: $("bg").value.trim(),
+      caption: $("caption").value.trim(),
+      platforms: selectedPlatforms(),
+    };
+    const cb = $("callback").value.trim();
+    if (cb) payload.callback_url = cb;
+    if (!payload.text || !payload.background_video_url) {
+      log("SYS", "<b>text</b> and <b>background_video_url</b> are required", "ERR"); return;
+    }
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> dispatching';
+    const res = await call("POST", "/api/v1/generate", payload);
+    btn.disabled = false; btn.innerHTML = "▸ dispatch";
+    if (res.ok && res.data?.task_id) {
+      log("POST", `<b>/api/v1/generate</b> → task_id <b>${res.data.task_id}</b>`, res.status);
+      $("taskInput").value = res.data.task_id;
+      startTracking(res.data.task_id, true);
+    } else {
+      const detail = res.data?.detail ? JSON.stringify(res.data.detail) : "request failed";
+      log("POST", `<b>/api/v1/generate</b> · ${detail}`, res.status || "ERR");
+    }
+  };
+  $("clear").onclick = () => {
+    ["text","bg","caption","callback"].forEach((i)=>$(i).value="");
+  };
+
+  // ---- tracking ----
+  function paintPipeline(status, step) {
+    const stages = [...$("pipe").querySelectorAll(".stage")];
+    stages.forEach((s) => (s.className = "stage"));
+    if (status === "complete") { stages.forEach((s) => s.classList.add("done")); return; }
+    const idx = step ? STEPS.indexOf(step) : -1;
+    stages.forEach((s, i) => {
+      if (status === "failed") {
+        if (idx >= 0 && i < idx) s.classList.add("done");
+        else if (idx >= 0 && i === idx) s.classList.add("failed");
+      } else {
+        if (idx >= 0 && i < idx) s.classList.add("done");
+        else if (idx >= 0 && i === idx) s.classList.add("active");
+      }
+    });
+  }
+  function setStatus(status) {
+    const labels = { queued:"queued", pending:"pending", started:"started", progress:"in progress", complete:"complete", failed:"failed" };
+    const pill = $("pill"); pill.dataset.s = status; pill.textContent = labels[status] || status;
+  }
+  function showResult(res) {
+    const el = $("result"); el.className = "result";
+    if (res.data?.status === "complete") {
+      el.classList.add("show","ok");
+      el.innerHTML = `<span class="k">output_path</span> ${res.data.output_path || "—"}`;
+    } else if (res.data?.status === "failed") {
+      el.classList.add("show","err");
+      el.innerHTML = `<span class="k">error</span> ${res.data.error || "unknown error"}`;
+    } else el.className = "result";
+  }
+  function stopPoll() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = null; $("poll").textContent = "⟳ auto-poll: off";
+  }
+  async function pollOnce() {
+    if (!currentTask) return;
+    const res = await call("GET", `/api/v1/jobs/${currentTask}`);
+    if (!res.ok) {
+      log("GET", `<b>/jobs/${currentTask.slice(0,8)}…</b> ${res.data?.detail ? JSON.stringify(res.data.detail):""}`, res.status || "ERR");
+      if (res.status === 401) stopPoll();
+      return;
+    }
+    const { status, step } = res.data;
+    setStatus(status); paintPipeline(status, step); showResult(res);
+    log("GET", `<b>/jobs/${currentTask.slice(0,8)}…</b> ${status}${step ? " · "+step : ""}`, res.status);
+    if (status === "complete" || status === "failed") stopPoll();
+  }
+  function startTracking(id, autopoll) {
+    currentTask = id;
+    $("trackerEmpty").style.display = "none";
+    $("trackerBody").style.display = "block";
+    $("tid").textContent = id;
+    setStatus("pending"); paintPipeline("pending", null); $("result").className = "result";
+    pollOnce();
+    if (autopoll) togglePoll(true);
+  }
+  function togglePoll(force) {
+    const on = force === true || (!pollTimer && force !== false);
+    stopPoll();
+    if (on && currentTask) {
+      pollTimer = setInterval(pollOnce, 2000);
+      $("poll").textContent = "⟳ auto-poll: on";
+      pollOnce();
+    }
+  }
+  $("track").onclick = () => {
+    const id = $("taskInput").value.trim();
+    if (!id) { log("SYS", "enter a task_id to track", "ERR"); return; }
+    startTracking(id, true);
+  };
+  $("poll").onclick = () => togglePoll();
+  $("revoke").onclick = async () => {
+    if (!currentTask) return;
+    const res = await call("DELETE", `/api/v1/jobs/${currentTask}`);
+    log("DELETE", `<b>/jobs/${currentTask.slice(0,8)}…</b> ${res.data ? JSON.stringify(res.data) : "revoked"}`, res.status || "ERR");
+    if (res.ok) { stopPoll(); pollOnce(); }
+  };
+  $("copyId").onclick = () => { if (currentTask) navigator.clipboard?.writeText(currentTask); $("copyId").textContent = "copied"; setTimeout(()=>$("copyId").textContent="copy",1200); };
+
+  // ---- boot ----
+  log("SYS", "console ready · <b>undertow engine</b>", null);
+  ping();
+})();
+</script>
+</body>
+</html>

@@ -231,4 +231,4 @@ __marimo__/
 .claude/
 
 # user settings
-settings.local.json
+settings.local.json.playwright-mcp/
