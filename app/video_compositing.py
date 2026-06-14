@@ -25,8 +25,16 @@ from moviepy.editor import (
     VideoFileClip,
     concatenate_videoclips,
 )
+from PIL import Image
 
 from app.timestamp_extraction import WordTimestamp
+
+# MoviePy 1.0.3 calls Image.ANTIALIAS, which Pillow removed in 10.0 (we run
+# pillow 12.x), crashing resize() with "no attribute 'ANTIALIAS'". Re-alias it
+# to LANCZOS. moviepy reads the constant at resize-call time, so patching here
+# at import is in time.
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.Resampling.LANCZOS
 
 # ---------------------------------------------------------------------------
 # Word colour classification
