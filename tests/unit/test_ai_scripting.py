@@ -50,16 +50,29 @@ def test_generate_script_passes_topic_in_user_message():
     assert "python tricks" in user_msg["content"]
 
 
-def test_generate_script_uses_gpt4o():
+def test_generate_script_uses_default_model():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = _mock_completion("x")
 
-    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=True):
         with patch("app.ai_scripting.OpenAI", return_value=mock_client):
             module.generate_script("topic")
 
     call_kwargs = mock_client.chat.completions.create.call_args
-    assert call_kwargs.kwargs["model"] == "gpt-4o"
+    assert call_kwargs.kwargs["model"] == "gpt-4.1-mini"
+
+
+def test_generate_script_respects_model_override():
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = _mock_completion("x")
+
+    env = {"OPENAI_API_KEY": "test-key", "OPENAI_CHAT_MODEL": "gpt-4.1"}
+    with patch.dict("os.environ", env, clear=True):
+        with patch("app.ai_scripting.OpenAI", return_value=mock_client):
+            module.generate_script("topic")
+
+    call_kwargs = mock_client.chat.completions.create.call_args
+    assert call_kwargs.kwargs["model"] == "gpt-4.1"
 
 
 def test_generate_script_respects_max_tokens():
