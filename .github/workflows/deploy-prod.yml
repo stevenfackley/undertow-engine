@@ -13,6 +13,17 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
+# Serialize prod deploys. A burst of merges to main (e.g. a Dependabot
+# batch) otherwise fans out into overlapping runs that race the same EC2
+# box via SSM. cancel-in-progress is intentionally false: an in-flight SSM
+# Run Command keeps executing on the box even after the GitHub job is
+# cancelled, so cancelling would orphan a half-applied `docker compose up`
+# and let two deploys clobber each other. Queue instead — each run finishes
+# cleanly, latest commit applies last.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
 jobs:
   build:
     name: Build & Push Image (Production)
