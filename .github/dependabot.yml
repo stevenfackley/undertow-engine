@@ -5,10 +5,6 @@ updates:
     schedule: { interval: weekly, day: monday }
     open-pull-requests-limit: 10
     ignore:
-      # moviepy 1.0.3 caps decorator<5.0; Dependabot's pip ecosystem doesn't
-      # honor transitive constraints. Pin until moviepy is upgraded or replaced.
-      - dependency-name: "decorator"
-        update-types: ["version-update:semver-major"]
       # pydantic-core is version-locked to pydantic (exact == pin upstream).
       # Standalone core bumps outrun pydantic and break pip resolution at
       # Docker build (2026-06-11, core 2.47.0 vs pydantic 2.13.4). Let core

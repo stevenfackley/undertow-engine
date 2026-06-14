@@ -72,3 +72,37 @@ postgrest) is exact-pinned by the parent — Dependabot bumped 3 of 5 children,
 leaving the parent unsatisfiable. Lesson: after merging a multi-PR pip sweep,
 run one full `uv pip install --dry-run -r requirements.txt` resolve — pip
 surfaces conflicts one at a time, a local resolve surfaces them all at once.
+
+---
+
+## 2026-06-13 — Replace MoviePy with direct ffmpeg + libass for video compositing
+
+**Status:** accepted
+**Context:** A prod render failed at `video_compositing` with `module 'PIL.Image'
+has no attribute 'ANTIALIAS'`. Root cause: `moviepy==1.0.3` (unmaintained since
+2020) calls `Image.ANTIALIAS`, removed in Pillow 10, and a Dependabot bump put us
+on `pillow==12.2.0`. A compat shim would fix the symptom, but MoviePy is the
+underlying liability: it's abandoned, drags ImageMagick (for `TextClip`) and a
+pinned-Pillow tail, decodes every frame into NumPy and composites in Python
+(slow), and MoviePy 2.x still caps `pillow<12`. MoviePy is used in exactly one
+module, and the image already ships `ffmpeg` (with libass) and `fonts-montserrat`.
+**Decision:** Drop MoviePy entirely. Rewrite `app/video_compositing.py` to render
+with a single `ffmpeg` filtergraph: `scale=…:force_original_aspect_ratio=increase`
++ `crop` for the 9:16 cover-crop, `subtitles=` to burn a generated **ASS** subtitle
+for the kinetic word-by-word captions (per-word timing/colour/outline via libass),
+`-stream_loop` to loop short backgrounds, and `-map` to mux the voiceover. Caption
+and command construction are pure functions (`_build_ass`, `_build_ffmpeg_cmd`,
+`_format_ass_time`) with unit tests, plus a `skipif`-guarded real-ffmpeg render
+smoke test. Remove `imagemagick` + its policy hack from the Dockerfile.
+**Consequences:**
+- Dependencies removed (no longer referenced anywhere): `moviepy`, `decorator`,
+  `imageio`, `imageio-ffmpeg`, `numpy`, `pillow`, `proglog` (95 → 88 pins).
+  The entire MoviePy/Pillow/ImageMagick version-conflict class is gone at the
+  root — no shim, no Pillow pin, and the `decorator` Dependabot-ignore is dropped.
+- `compose_video(...)` signature is unchanged; the worker is untouched.
+- Captions now render via libass instead of ImageMagick `TextClip`; font is
+  resolved by fontconfig name (`Montserrat Black`) from `fonts-montserrat`.
+- Render is far faster (single native encode vs per-frame Python compositing).
+- The render itself is exercised by CI only where ffmpeg is on PATH (smoke test
+  skips otherwise); the production image always has it. First prod render after
+  deploy is the live confirmation.
