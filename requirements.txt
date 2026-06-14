@@ -48,7 +48,7 @@ colorama==0.4.6 ; sys_platform == 'win32'
     #   click
     #   tqdm
     #   uvicorn
-cryptography==48.0.1
+cryptography==49.0.0
     # via pyjwt
 decorator==4.4.2
     # via moviepy
