@@ -1,0 +1,12 @@
+[tasks]
+install = "uv pip install --system -e '.[test]' && uv pip install --system pytest-asyncio httpx"
+lint = "ruff check ."
+"format-check" = "ruff format --check ."
+format = "ruff format ."
+test = "pytest -v --tb=short"
+ship = "ruff check . && ruff format --check . && pytest -v --tb=short"
+dev = "uvicorn main:app --reload --host 0.0.0.0 --port 8000"
+worker = "celery -A worker.celery_app worker --loglevel=INFO"
+
+[env]
+# non-secret config — secrets stay in .env
