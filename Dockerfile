@@ -45,7 +45,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium browser
+# Install Playwright Chromium to a shared, fixed path (not root's HOME cache),
+# so the non-root undertow user finds it at runtime via the same env var.
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install chromium
 
 # --- Copy application source -----------------------------------------------
@@ -60,7 +62,7 @@ COPY . .
 RUN groupadd -r undertow \
     && useradd -r -g undertow -m -d /home/undertow undertow \
     && mkdir -p /data/outputs /data/chromium-profile /home/undertow/.cache \
-    && chown -R undertow:undertow /app /data /home/undertow
+    && chown -R undertow:undertow /app /data /home/undertow /ms-playwright
 ENV HOME=/home/undertow \
     XDG_CACHE_HOME=/home/undertow/.cache
 USER undertow
