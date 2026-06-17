@@ -53,7 +53,8 @@ ACTION_WORDS: frozenset[str] = frozenset(
 )
 
 FONT = "Montserrat Black"  # fontconfig name; libass resolves it (fonts-montserrat)
-FONT_SIZE = 80
+FONT_SIZE = 120  # ~6% of 1920 height — punchy short-form caption sizing
+OUTLINE = 6  # thick black stroke so words stay legible over busy backgrounds
 DEFAULT_TEXT_COLOR = "white"
 NEGATIVE_COLOR = "red"
 ACTION_COLOR = "yellow"
@@ -186,7 +187,7 @@ def _build_ass(word_timestamps: list[WordTimestamp]) -> str:
         "Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, "
         "MarginR, MarginV, Encoding\n"
         f"Style: Default,{FONT},{FONT_SIZE},&H00FFFFFF,&H00000000,&H00000000,"
-        "0,0,0,0,100,100,0,0,1,3,0,5,0,0,0,1\n"
+        f"0,0,0,0,100,100,0,0,1,{OUTLINE},0,5,0,0,0,1\n"
         "\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, "
