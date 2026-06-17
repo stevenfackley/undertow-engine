@@ -52,8 +52,17 @@ RUN playwright install chromium
 COPY . .
 
 # --- Non-root user for security --------------------------------------------
-RUN groupadd -r undertow && useradd -r -g undertow undertow \
-    && chown -R undertow:undertow /app
+# Give undertow a real home (fontconfig/libass cache lives under XDG_CACHE_HOME)
+# and own the data dirs the compose volumes mount over. A freshly-created named
+# volume inherits the ownership of the image directory it shadows, so creating
+# these as undertow here makes /data/outputs and the Chromium profile writable
+# without running the app as root.
+RUN groupadd -r undertow \
+    && useradd -r -g undertow -m -d /home/undertow undertow \
+    && mkdir -p /data/outputs /data/chromium-profile /home/undertow/.cache \
+    && chown -R undertow:undertow /app /data /home/undertow
+ENV HOME=/home/undertow \
+    XDG_CACHE_HOME=/home/undertow/.cache
 USER undertow
 
 # --- Default command (overridden per service in docker-compose) ------------
