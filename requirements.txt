@@ -62,7 +62,7 @@ fastapi==0.137.1
     # via undertow
 fsspec==2026.4.0
     # via pyiceberg
-greenlet==3.5.1
+greenlet==3.5.2
     # via playwright
 h11==0.16.0
     # via
