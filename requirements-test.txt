@@ -113,7 +113,7 @@ mmh3==5.2.1
     # via pyiceberg
 multidict==6.7.1
     # via yarl
-openai==2.41.1
+openai==2.44.0
     # via undertow
 packaging==26.2
     # via
