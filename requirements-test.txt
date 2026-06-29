@@ -180,7 +180,7 @@ pyyaml==6.0.3
     # via uvicorn
 realtime==2.31.0
     # via supabase
-redis==8.0.0
+redis==8.0.1
     # via undertow
 requests==2.34.2
     # via pyiceberg
