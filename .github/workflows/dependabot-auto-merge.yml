@@ -1,0 +1,38 @@
+name: dependabot-auto-merge
+
+# Auto-approves and enables auto-merge on Dependabot PRs that are PATCH bumps
+# only. Minor/major bumps still require human review.
+#
+# Requirements:
+#   * Repo Settings -> General -> "Allow auto-merge" must be ON.
+#   * Branch protection on main should require status checks - `--auto` only
+#     waits if there are required checks to wait for.
+#   * Default GITHUB_TOKEN has contents:write + pull-requests:write (granted
+#     by the permissions: block below).
+
+on: pull_request_target
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Fetch update metadata
+        id: meta
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve and enable auto-merge for patch bumps
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
