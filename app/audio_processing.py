@@ -11,12 +11,19 @@ from __future__ import annotations
 import io
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
 from pydub import AudioSegment
 from pydub.silence import split_on_silence
 
+if TYPE_CHECKING:
+    from app.cost_tracking import JobCostAccumulator
+
 _client: OpenAI | None = None
+
+# OpenAI TTS model used by :func:`synthesise_speech`.
+TTS_MODEL = "tts-1"
 
 
 def _get_client() -> OpenAI:
@@ -44,7 +51,7 @@ def synthesise_speech(script: str, voice: str = "onyx") -> AudioSegment:
     """
     client = _get_client()
     response = client.audio.speech.create(
-        model="tts-1",
+        model=TTS_MODEL,
         voice=voice,
         input=script,
         response_format="mp3",
@@ -89,7 +96,11 @@ def strip_silence(
     return sum(chunks[1:], chunks[0])
 
 
-def process_script_to_audio(script: str, output_path: str | Path) -> Path:
+def process_script_to_audio(
+    script: str,
+    output_path: str | Path,
+    cost: JobCostAccumulator | None = None,
+) -> Path:
     """
     Full pipeline: synthesise speech from *script*, strip silence, and write
     the result as an MP3 file at *output_path*.
@@ -100,6 +111,9 @@ def process_script_to_audio(script: str, output_path: str | Path) -> Path:
         The script text.
     output_path:
         Destination path for the processed MP3 file.
+    cost:
+        Optional :class:`~app.cost_tracking.JobCostAccumulator`. When provided,
+        the TTS cost (priced per input character) is recorded.
 
     Returns
     -------
@@ -108,6 +122,8 @@ def process_script_to_audio(script: str, output_path: str | Path) -> Path:
     """
     output_path = Path(output_path)
     raw_audio = synthesise_speech(script)
+    if cost is not None:
+        cost.add_tts(TTS_MODEL, len(script))
     clean_audio = strip_silence(raw_audio)
     clean_audio.export(str(output_path), format="mp3")
     return output_path

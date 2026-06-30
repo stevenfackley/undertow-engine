@@ -14,14 +14,31 @@ import worker as module
 # _fire_webhook
 # ---------------------------------------------------------------------------
 
-def test_fire_webhook_posts_json_payload():
+def test_fire_webhook_posts_serialized_body_unsigned():
     with patch("worker.httpx") as mock_httpx:
         module._fire_webhook("http://example.com/cb", {"status": "complete"})
-    mock_httpx.post.assert_called_once_with(
-        "http://example.com/cb",
-        json={"status": "complete"},
-        timeout=10.0,
-    )
+    _, kwargs = mock_httpx.post.call_args
+    assert mock_httpx.post.call_args.args[0] == "http://example.com/cb"
+    assert kwargs["content"] == b'{"status":"complete"}'
+    assert kwargs["headers"]["Content-Type"] == "application/json"
+    assert "X-Undertow-Signature" not in kwargs["headers"]
+    assert kwargs["timeout"] == 10.0
+
+
+def test_fire_webhook_signs_body_when_secret_set():
+    import hashlib
+    import hmac
+
+    secret = "topsecret"
+    body = b'{"status":"complete"}'
+    expected = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+
+    with patch("worker.httpx") as mock_httpx:
+        module._fire_webhook("http://example.com/cb", {"status": "complete"}, secret=secret)
+
+    _, kwargs = mock_httpx.post.call_args
+    assert kwargs["content"] == body
+    assert kwargs["headers"]["X-Undertow-Signature"] == expected
 
 
 def test_fire_webhook_silent_on_http_error():
@@ -89,3 +106,78 @@ def test_cleanup_only_targets_mp4_files(tmp_path):
 
     assert result["deleted"] == 0
     assert other.exists()
+
+
+# ---------------------------------------------------------------------------
+# Callback URL resolution + completion webhook
+# ---------------------------------------------------------------------------
+
+def test_resolve_callback_url_prefers_per_request():
+    with patch.dict("os.environ", {"JOB_WEBHOOK_URL": "http://env/cb"}):
+        assert module._resolve_callback_url("http://req/cb") == "http://req/cb"
+
+
+def test_resolve_callback_url_falls_back_to_env():
+    with patch.dict("os.environ", {"JOB_WEBHOOK_URL": "http://env/cb"}):
+        assert module._resolve_callback_url(None) == "http://env/cb"
+
+
+def test_resolve_callback_url_none_when_unset():
+    with patch.dict("os.environ", {}, clear=True):
+        assert module._resolve_callback_url(None) is None
+
+
+def test_send_completion_webhook_noop_when_no_url():
+    with patch.dict("os.environ", {}, clear=True):
+        with patch("worker._fire_webhook") as mock_fire:
+            module._send_completion_webhook(None, {"status": "success"})
+    mock_fire.assert_not_called()
+
+
+def test_send_completion_webhook_fires_with_secret():
+    env = {"JOB_WEBHOOK_URL": "http://env/cb", "JOB_WEBHOOK_SECRET": "s3cr3t"}
+    with patch.dict("os.environ", env, clear=True):
+        with patch("worker._fire_webhook") as mock_fire:
+            module._send_completion_webhook(None, {"status": "dead_letter"})
+    mock_fire.assert_called_once_with("http://env/cb", {"status": "dead_letter"}, secret="s3cr3t")
+
+
+# ---------------------------------------------------------------------------
+# Dead-letter record
+# ---------------------------------------------------------------------------
+
+def test_build_dlq_record_fields():
+    record = module.build_dlq_record(
+        task_id="t-1",
+        roast_id="r-1",
+        error="ValueError: bad",
+        error_type="ValueError",
+        retries=0,
+        classification="permanent",
+        cost={"total_usd": 0.01},
+    )
+    assert record["task_id"] == "t-1"
+    assert record["classification"] == "permanent"
+    assert record["error_type"] == "ValueError"
+    assert record["cost"] == {"total_usd": 0.01}
+    assert "dead_lettered_at" in record
+
+
+def test_persist_dlq_record_writes_json(tmp_path):
+    import json
+
+    record = module.build_dlq_record(
+        task_id="t-2",
+        roast_id=None,
+        error="boom",
+        error_type="RuntimeError",
+        retries=3,
+        classification="retries_exhausted",
+        cost=None,
+    )
+    path = module._persist_dlq_record(record, dlq_dir=tmp_path / "dlq")
+    assert path.exists()
+    assert path.name == "t-2.json"
+    loaded = json.loads(path.read_text(encoding="utf-8"))
+    assert loaded["classification"] == "retries_exhausted"
+    assert loaded["retries"] == 3

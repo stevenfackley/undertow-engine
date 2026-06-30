@@ -60,9 +60,13 @@ services:
       - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
+      - DLQ_DIR=/data/dlq
     volumes:
       - chromium_profile:/data/chromium-profile
       - outputs:/data/outputs
+      # Dead-letter records must survive container recreation (every deploy
+      # runs `up --build`), so the DLQ lives on its own named volume.
+      - dlq:/data/dlq
     depends_on:
       redis:
         condition: service_healthy
@@ -123,3 +127,4 @@ services:
 volumes:
   chromium_profile:
   outputs:
+  dlq:

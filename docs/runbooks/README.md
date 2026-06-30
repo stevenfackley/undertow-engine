@@ -2,6 +2,11 @@
 
 Operational runbooks for deploying, maintaining, and troubleshooting Undertow Engine.
 
+- **[prod-operations.md](prod-operations.md)** — production on-call: diagnose
+  stuck/failed jobs, inspect & re-drive the DLQ, read Flower, roll back a
+  `prod-{SHA}` image, and find per-job cost. Start here for prod incidents.
+- This file — local/dev compose operations and general troubleshooting.
+
 ---
 
 ## Quick Reference
