@@ -75,6 +75,40 @@ def test_generate_script_respects_model_override():
     assert call_kwargs.kwargs["model"] == "gpt-4.1"
 
 
+def test_generate_script_records_cost_when_accumulator_passed():
+    from app.cost_tracking import JobCostAccumulator
+
+    response = _mock_completion("script")
+    response.usage = SimpleNamespace(prompt_tokens=120, completion_tokens=80)
+
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = response
+
+    acc = JobCostAccumulator()
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=True):
+        with patch("app.ai_scripting.OpenAI", return_value=mock_client):
+            module.generate_script("topic", cost=acc)
+
+    assert len(acc.line_items) == 1
+    item = acc.line_items[0]
+    assert item["step"] == "chat"
+    assert item["model"] == "gpt-4.1-mini"
+    assert item["prompt_tokens"] == 120
+    assert item["completion_tokens"] == 80
+
+
+def test_generate_script_no_cost_capture_without_accumulator():
+    # Default path (no accumulator) must not touch usage — keeps existing
+    # callers and mocks working unchanged.
+    mock_client = MagicMock()
+    mock_client.chat.completions.create.return_value = _mock_completion("x")
+
+    with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+        with patch("app.ai_scripting.OpenAI", return_value=mock_client):
+            result = module.generate_script("topic")
+    assert result == "x"
+
+
 def test_generate_script_respects_max_tokens():
     mock_client = MagicMock()
     mock_client.chat.completions.create.return_value = _mock_completion("x")

@@ -106,3 +106,53 @@ smoke test. Remove `imagemagick` + its policy hack from the Dockerfile.
 - The render itself is exercised by CI only where ffmpeg is on PATH (smoke test
   skips otherwise); the production image always has it. First prod render after
   deploy is the live confirmation.
+
+---
+
+## 2026-06-30 — Job reliability: typed retry/DLQ, completion webhook, per-job cost
+
+**Status:** accepted
+**Context:** The pipeline task used `autoretry_for=(Exception,)`, which retried
+*every* failure — including malformed-input errors that can never succeed — and
+had no terminal capture: when retries exhausted, the Celery task went to
+`FAILURE` and the Supabase row stayed `processing` forever (a poisoned job was
+silently lost). The completion webhook only fired on success and was
+per-request only. OpenAI spend was untracked. There was no prod on-call runbook.
+**Decision:**
+- **Retry/DLQ.** Drop blanket `autoretry_for`. Classify failures in a pure,
+  unit-tested `app/reliability.py`: transient (network, OpenAI 429/5xx,
+  timeouts) → bounded `self.retry` with exponential backoff
+  (`JOB_MAX_RETRIES`/`JOB_RETRY_BACKOFF_BASE`/`_MAX`, defaults 3/30/300s +
+  jitter); permanent (bad-input builtins, HTTP 4xx≠429, explicit
+  `PermanentJobError`) → dead-letter immediately. Unknown errors default to
+  transient but are bounded by the retry budget, so they still reach the DLQ.
+  On dead-letter the worker writes a JSON record to `DLQ_DIR` (default
+  `/data/dlq`, a dedicated named volume so it survives `up --build` deploys),
+  sets the Supabase row to `failed`, and re-raises so Celery records `FAILURE`.
+  The record carries the original payload so API-direct jobs (no `roast_id`)
+  can be re-driven.
+- **Completion webhook.** Fires on **both** terminal states (success and
+  dead-letter). URL resolves per-request `callback_url` → `JOB_WEBHOOK_URL` →
+  disabled (clean no-op). Body is serialised deterministically and, when
+  `JOB_WEBHOOK_SECRET` is set, HMAC-SHA256 signed via
+  `X-Undertow-Signature: sha256=<hex>` (GitHub-webhook convention; no prior
+  signing convention existed). Builder + signer are pure and unit-tested.
+- **Per-job cost.** Pure `app/cost_tracking.py` (pricing tables +
+  `JobCostAccumulator`) threaded through the chat/TTS/whisper calls via an
+  optional `cost=` arg (default `None` = no-op, so existing callers are
+  unchanged). Emitted as a `job_cost` structured log, in the Celery result
+  record, and in the webhook payload. Rates default to list pricing,
+  overridable via `OPENAI_PRICE_*`.
+- **Runbook.** `docs/runbooks/prod-operations.md` covers diagnosing
+  stuck/failed jobs, inspecting/re-driving the DLQ, reading Flower, rolling back
+  `prod-{SHA}`, and the cost-tracking location.
+**Consequences:**
+- Malformed input no longer burns the retry budget; transient blips still get a
+  bounded, backed-off retry. Poisoned jobs are captured in the DLQ + Supabase
+  `failed`, not lost.
+- New env: `JOB_MAX_RETRIES`, `JOB_RETRY_BACKOFF_BASE`, `JOB_RETRY_BACKOFF_MAX`,
+  `DLQ_DIR`, `JOB_WEBHOOK_URL`, `JOB_WEBHOOK_SECRET`, `OPENAI_PRICE_*`. All have
+  safe defaults; prod is not forced to adopt the webhook.
+- New base-compose `dlq` volume on the worker. `compose_video(...)` and the
+  task's public signature are unchanged; the happy path is untouched.
+- 48 new unit tests (reliability/cost/webhook pure functions + worker wiring).

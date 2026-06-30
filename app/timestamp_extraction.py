@@ -9,11 +9,17 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 from openai import OpenAI
 
+if TYPE_CHECKING:
+    from app.cost_tracking import JobCostAccumulator
+
 _client: OpenAI | None = None
+
+# OpenAI transcription model used by :func:`extract_word_timestamps`.
+WHISPER_MODEL = "whisper-1"
 
 
 def _get_client() -> OpenAI:
@@ -29,7 +35,10 @@ class WordTimestamp(TypedDict):
     end: float    # seconds
 
 
-def extract_word_timestamps(audio_path: str | Path) -> list[WordTimestamp]:
+def extract_word_timestamps(
+    audio_path: str | Path,
+    cost: JobCostAccumulator | None = None,
+) -> list[WordTimestamp]:
     """
     Transcribe *audio_path* with Whisper and return per-word timestamps.
 
@@ -37,6 +46,10 @@ def extract_word_timestamps(audio_path: str | Path) -> list[WordTimestamp]:
     ----------
     audio_path:
         Path to the processed audio file (MP3 / WAV).
+    cost:
+        Optional :class:`~app.cost_tracking.JobCostAccumulator`. When provided,
+        the transcription cost (priced per audio minute, derived from the
+        Whisper ``duration`` field) is recorded.
 
     Returns
     -------
@@ -49,11 +62,16 @@ def extract_word_timestamps(audio_path: str | Path) -> list[WordTimestamp]:
 
     with audio_path.open("rb") as audio_file:
         response = client.audio.transcriptions.create(
-            model="whisper-1",
+            model=WHISPER_MODEL,
             file=audio_file,
             response_format="verbose_json",
             timestamp_granularities=["word"],
         )
+
+    if cost is not None:
+        duration = getattr(response, "duration", None)
+        if duration is not None:
+            cost.add_whisper(WHISPER_MODEL, float(duration))
 
     words: list[WordTimestamp] = []
     for word_info in response.words or []:

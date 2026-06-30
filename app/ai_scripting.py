@@ -9,8 +9,12 @@ ending. Model defaults to gpt-4.1-mini; override with OPENAI_CHAT_MODEL.
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 from openai import OpenAI
+
+if TYPE_CHECKING:
+    from app.cost_tracking import JobCostAccumulator
 
 _client: OpenAI | None = None
 
@@ -32,7 +36,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def generate_script(topic: str, max_tokens: int = 300) -> str:
+def generate_script(
+    topic: str,
+    max_tokens: int = 300,
+    cost: JobCostAccumulator | None = None,
+) -> str:
     """
     Generate a short-form video script for *topic*.
 
@@ -44,6 +52,9 @@ def generate_script(topic: str, max_tokens: int = 300) -> str:
         The subject or raw idea to build the script around.
     max_tokens:
         Upper bound on the script length in tokens.
+    cost:
+        Optional :class:`~app.cost_tracking.JobCostAccumulator`. When provided,
+        the call's token usage is recorded for per-job cost tracking.
 
     Returns
     -------
@@ -51,8 +62,9 @@ def generate_script(topic: str, max_tokens: int = 300) -> str:
         The generated script text.
     """
     client = _get_client()
+    model = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4.1-mini")
     response = client.chat.completions.create(
-        model=os.environ.get("OPENAI_CHAT_MODEL", "gpt-4.1-mini"),
+        model=model,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"Write a script about: {topic}"},
@@ -60,4 +72,14 @@ def generate_script(topic: str, max_tokens: int = 300) -> str:
         max_tokens=max_tokens,
         temperature=0.9,
     )
+
+    if cost is not None:
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            cost.add_chat(
+                model,
+                int(getattr(usage, "prompt_tokens", 0) or 0),
+                int(getattr(usage, "completion_tokens", 0) or 0),
+            )
+
     return response.choices[0].message.content.strip()
