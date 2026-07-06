@@ -214,7 +214,7 @@ tenacity==9.1.4
     # via pyiceberg
 tqdm==4.68.3
     # via openai
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   anyio
     #   fastapi
