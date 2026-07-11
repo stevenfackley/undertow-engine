@@ -80,7 +80,19 @@ services:
 
   cloudflared:
     image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN}
-    restart: unless-stopped
+    # Token via env, not argv: with an empty/absent ${TUNNEL_TOKEN} the old
+    # `--token ${TUNNEL_TOKEN}` collapsed to a bare `--token`, cloudflared
+    # printed its CLI usage and exited 0, and `restart: unless-stopped` looped
+    # it forever — 121k+ restarts over ~3 months on the prod box (unnoticed
+    # because undertow.roastandresolve.com is served by another connector).
+    # With the env form an empty token exits nonzero, and on-failure:10 stops
+    # retrying after ~10 attempts instead of churning for months. Trade-off:
+    # on-failure does not auto-start on daemon boot — acceptable while the
+    # token is unprovisioned on this box; revisit if this connector becomes
+    # the serving path.
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN:-}
+    restart: on-failure:10
     depends_on:
       - api
