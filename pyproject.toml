@@ -37,7 +37,7 @@ dependencies = [
     "redis==8.0.1",
     "slowapi==0.1.10",
     "starlette>=0.47.2",
-    "supabase>=2.7.4",
+    "psycopg[binary]>=3.2",
     "uvicorn[standard]==0.50.2",
 ]
 
