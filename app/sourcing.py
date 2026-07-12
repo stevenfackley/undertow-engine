@@ -4,7 +4,9 @@ Sourcing Module
 Reads pending roast payloads and writes state transitions back after each
 pipeline stage.
 
-This module uses Supabase as the source of truth for queue state.
+This module uses Postgres (shared qavren-db project) as the source of truth
+for queue state. Table names are unqualified — they resolve through the
+connection role's search_path.
 
 Expected table schema (roast_queue):
     create table roast_queue (
@@ -25,40 +27,41 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.supabase_client import get_client
+from app.db import connect
 
 _TABLE = "roast_queue"
 
 
 def fetch_pending(limit: int = 5) -> list[dict]:
     """Return up to *limit* rows with status='pending', oldest first."""
-    response = (
-        get_client()
-        .table(_TABLE)
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at")
-        .limit(limit)
-        .execute()
-    )
-    return response.data or []
+    with connect() as conn:
+        rows = conn.execute(
+            f"SELECT * FROM {_TABLE} WHERE status = 'pending' ORDER BY created_at LIMIT %s",
+            (limit,),
+        ).fetchall()
+    return rows
 
 
 def mark_processing(roast_id: str) -> None:
-    get_client().table(_TABLE).update({"status": "processing"}).eq("id", roast_id).execute()
+    with connect() as conn:
+        conn.execute(
+            f"UPDATE {_TABLE} SET status = 'processing' WHERE id = %s",
+            (roast_id,),
+        )
 
 
 def mark_published(roast_id: str, output_path: str) -> None:
-    get_client().table(_TABLE).update(
-        {
-            "status": "published",
-            "output_path": output_path,
-            "published_at": datetime.now(timezone.utc).isoformat(),
-        }
-    ).eq("id", roast_id).execute()
+    with connect() as conn:
+        conn.execute(
+            f"UPDATE {_TABLE} SET status = 'published', output_path = %s, published_at = %s"
+            " WHERE id = %s",
+            (output_path, datetime.now(timezone.utc), roast_id),
+        )
 
 
 def mark_failed(roast_id: str, error: str) -> None:
-    get_client().table(_TABLE).update(
-        {"status": "failed", "error_message": error[:2000]}
-    ).eq("id", roast_id).execute()
+    with connect() as conn:
+        conn.execute(
+            f"UPDATE {_TABLE} SET status = 'failed', error_message = %s WHERE id = %s",
+            (error[:2000], roast_id),
+        )

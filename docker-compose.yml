@@ -29,8 +29,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
     volumes:
@@ -56,8 +55,7 @@ services:
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
       - CHROMIUM_PROFILE_DIR=/data/chromium-profile
       - OUTPUT_DIR=/data/outputs
       - DLQ_DIR=/data/dlq
@@ -98,8 +96,7 @@ services:
       --schedule=/tmp/celerybeat-schedule
     environment:
       - REDIS_URL=redis://redis:6379/0
-      - SUPABASE_URL=${SUPABASE_URL:-}
-      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY:-}
+      - DATABASE_URL=${DATABASE_URL:-}
       - OUTPUT_DIR=/data/outputs
     volumes:
       - outputs:/data/outputs
