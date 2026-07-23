@@ -3,7 +3,7 @@ Video Compositing Module
 ------------------------
 Renders the final short-form video with **ffmpeg** (no MoviePy):
 
-1. Download the background gameplay video.
+1. Resolve the background gameplay video (public URL or local path).
 2. Pick a random start offset (loop the source if it is shorter than the audio).
 3. Scale-to-cover and centre-crop to 9:16 portrait (1080×1920).
 4. Burn word-by-word kinetic captions from a generated ASS subtitle, coloured
@@ -108,6 +108,24 @@ def _download_video(url: str, dest: Path) -> Path:
                         f"Background video exceeds {MAX_VIDEO_BYTES // (1024 * 1024)} MB limit"
                     )
                 f.write(chunk)
+    return dest
+
+
+def _resolve_background(source: str, dest: Path) -> Path:
+    """Materialise the background video at *dest*.
+
+    *source* is either a public http(s) URL — streamed with the size and
+    content-type guards — or a local filesystem path (the Supabase-sourced
+    flow's ``background_video`` column documents both), which is copied
+    verbatim.
+    """
+    if source.startswith(("http://", "https://")):
+        return _download_video(source, dest)
+
+    src = Path(source)
+    if not src.exists():
+        raise FileNotFoundError(f"Background video not found at local path: {source}")
+    shutil.copy2(src, dest)
     return dest
 
 
@@ -278,7 +296,8 @@ def compose_video(
     """
     Compose the final MP4.
 
-    1. Downloads *background_video_url*.
+    1. Resolves *background_video_url* — a public URL (downloaded) or a local
+       file path (copied), per the roast_queue ``background_video`` contract.
     2. Loops it if shorter than the audio, then seeks to a random start offset.
     3. Scale-covers and centre-crops to 9:16 portrait (1080×1920).
     4. Burns kinetic word-by-word subtitles.
@@ -293,7 +312,7 @@ def compose_video(
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir)
         raw_video_path = tmp / "background_raw.mp4"
-        _download_video(background_video_url, raw_video_path)
+        _resolve_background(background_video_url, raw_video_path)
 
         bg_duration = _probe_duration(raw_video_path)
         offset = _random_start_offset(bg_duration, audio_duration)

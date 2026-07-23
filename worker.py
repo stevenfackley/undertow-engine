@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import random
-import shutil
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -177,23 +176,6 @@ def _persist_dlq_record(record: dict, dlq_dir: Path | None = None) -> Path:
     path = target_dir / f"{record['task_id']}.json"
     path.write_text(json.dumps(record, indent=2), encoding="utf-8")
     return path
-
-
-def _resolve_background(source: str, dest: Path) -> Path:
-    """
-    Handle both local file paths and remote URLs for the background video.
-    Local paths (not starting with http) are copied to *dest*.
-    Remote URLs are streamed with httpx.
-    """
-    if source.startswith(("http://", "https://")):
-        from app.video_compositing import _download_video
-        return _download_video(source, dest)
-
-    src = Path(source)
-    if not src.exists():
-        raise FileNotFoundError(f"Background video not found at local path: {source}")
-    shutil.copy2(src, dest)
-    return dest
 
 
 # ---------------------------------------------------------------------------

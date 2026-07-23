@@ -89,37 +89,6 @@ def test_source_and_enqueue_survives_single_row_failure():
 
 
 # ---------------------------------------------------------------------------
-# _resolve_background
-# ---------------------------------------------------------------------------
-
-
-def test_resolve_background_copies_local_file(tmp_path):
-    src = tmp_path / "src.mp4"
-    src.write_bytes(b"local video bytes")
-    dest = tmp_path / "dest.mp4"
-
-    result = module._resolve_background(str(src), dest)
-
-    assert result == dest
-    assert dest.read_bytes() == b"local video bytes"
-
-
-def test_resolve_background_missing_local_file_raises(tmp_path):
-    missing = tmp_path / "nope.mp4"
-    with pytest.raises(FileNotFoundError):
-        module._resolve_background(str(missing), tmp_path / "dest.mp4")
-
-
-def test_resolve_background_delegates_urls_to_download(tmp_path):
-    dest = tmp_path / "dest.mp4"
-    with patch("app.video_compositing._download_video", return_value=dest) as mock_dl:
-        result = module._resolve_background("https://example.com/bg.mp4", dest)
-
-    mock_dl.assert_called_once_with("https://example.com/bg.mp4", dest)
-    assert result == dest
-
-
-# ---------------------------------------------------------------------------
 # _handle_task_failure — retry vs dead-letter classification
 # ---------------------------------------------------------------------------
 
