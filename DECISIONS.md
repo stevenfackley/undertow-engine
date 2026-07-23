@@ -156,3 +156,31 @@ per-request only. OpenAI spend was untracked. There was no prod on-call runbook.
 - New base-compose `dlq` volume on the worker. `compose_video(...)` and the
   task's public signature are unchanged; the happy path is untouched.
 - 48 new unit tests (reliability/cost/webhook pure functions + worker wiring).
+
+## 2026-07-23 — Restore committed uv.lock (reverses PR #47)
+
+**Context:** PR #47 (May) deleted `uv.lock` as "zero consumers" — correct for
+CI/Docker, which read the exported `requirements*.txt`. But GitHub''s dependency
+graph never forgets a deleted manifest: the stale `uv.lock` snapshot (243
+packages, including pillow, which left the dependency set in the ffmpeg
+migration) kept generating Dependabot alerts and failing "Dependabot Updates"
+runs for every new advisory against packages only that dead snapshot still
+listed. 2026-07-23: 13 ghost pillow alerts dismissed as inaccurate; second
+occurrence of this class (15 urllib3-era ghosts before).
+
+**Decision:** Commit `uv.lock` again and keep it current. The graph then
+tracks the real dependency set at that path and ghost alerts stop at the
+source. This also re-aligns with the repo convention ("Pinned in `uv.lock`")
+and normal uv practice; `requirements*.txt` stay as the uv-exported artifacts
+CI and Docker consume. Regenerating the lock picked up certifi 2026.7.22 and
+greenlet 3.5.4 (patch-level) in the exports.
+
+**Consequences:**
+- Workflow when changing deps: edit `pyproject.toml` -> `uv lock` ->
+  `uv export --no-hashes --no-emit-project --output-file requirements.txt`
+  (and `--extra test` for requirements-test.txt) -> commit all three.
+- Dependabot''s pip ecosystem may raise duplicate alerts (lock + export) for
+  the same advisory, as haulcall does across package.json/package-lock.json.
+  Acceptable; both fix in one pass.
+- Deleting a manifest is never a cheap alert-cleanup: the graph keeps the
+  last snapshot forever. Update or replace manifests instead.
