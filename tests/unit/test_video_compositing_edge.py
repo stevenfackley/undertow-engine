@@ -14,7 +14,7 @@ import httpx
 import pytest
 
 import app.video_compositing as module
-from app.video_compositing import _download_video, compose_video
+from app.video_compositing import _download_video, _resolve_background, compose_video
 
 # ---------------------------------------------------------------------------
 # _download_video guard rails
@@ -68,6 +68,37 @@ def test_download_writes_streamed_bytes(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# _resolve_background — local path vs URL dispatch
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_background_copies_local_file(tmp_path):
+    src = tmp_path / "src.mp4"
+    src.write_bytes(b"local video bytes")
+    dest = tmp_path / "dest.mp4"
+
+    result = _resolve_background(str(src), dest)
+
+    assert result == dest
+    assert dest.read_bytes() == b"local video bytes"
+
+
+def test_resolve_background_missing_local_file_raises(tmp_path):
+    missing = tmp_path / "nope.mp4"
+    with pytest.raises(FileNotFoundError):
+        _resolve_background(str(missing), tmp_path / "dest.mp4")
+
+
+def test_resolve_background_delegates_urls_to_download(tmp_path):
+    dest = tmp_path / "dest.mp4"
+    with patch.object(module, "_download_video", return_value=dest) as mock_dl:
+        result = _resolve_background("https://example.com/bg.mp4", dest)
+
+    mock_dl.assert_called_once_with("https://example.com/bg.mp4", dest)
+    assert result == dest
+
+
+# ---------------------------------------------------------------------------
 # compose_video failure propagation
 # ---------------------------------------------------------------------------
 
@@ -109,3 +140,30 @@ def test_compose_video_returns_output_and_creates_parent_dir(tmp_path):
     result = _compose(tmp_path, proc)
     assert result == tmp_path / "out" / "final.mp4"
     assert result.parent.is_dir()
+
+
+def test_compose_video_accepts_local_background_path(tmp_path):
+    """The roast_queue background_video column documents 'local path OR public
+    URL' — a local path must compose without any network access."""
+    background = tmp_path / "gameplay.mp4"
+    background.write_bytes(b"local gameplay bytes")
+    audio = tmp_path / "audio.mp3"
+    audio.write_bytes(b"fake audio")
+    output = tmp_path / "final.mp4"
+
+    proc = MagicMock(returncode=0, stderr="")
+    with patch.object(module, "_probe_duration", side_effect=[10.0, 30.0]):
+        with patch("app.video_compositing.subprocess.run", return_value=proc) as mock_run:
+            with patch("app.video_compositing.httpx.stream") as mock_stream:
+                result = compose_video(
+                    background_video_url=str(background),
+                    audio_path=audio,
+                    word_timestamps=[],
+                    output_path=output,
+                )
+
+    assert result == output
+    mock_stream.assert_not_called()
+    # ffmpeg was pointed at the materialised local copy, not the original.
+    cmd = mock_run.call_args.args[0]
+    assert any("background_raw.mp4" in str(part) for part in cmd)
