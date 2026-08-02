@@ -174,5 +174,5 @@ wcwidth==0.8.2
     # via prompt-toolkit
 websockets==16.1.1
     # via uvicorn
-wrapt==2.2.2
+wrapt==2.3.0
     # via deprecated
