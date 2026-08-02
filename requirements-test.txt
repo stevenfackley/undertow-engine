@@ -2,7 +2,7 @@
 #    uv export --no-hashes --no-emit-project --extra test --output-file requirements-test.txt
 amqp==5.3.1
     # via kombu
-annotated-doc==0.0.4
+annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
