@@ -73,7 +73,7 @@ limits==5.8.0
     #   undertow
 openai==2.48.0
     # via undertow
-packaging==26.2
+packaging==26.3
     # via
     #   kombu
     #   limits
