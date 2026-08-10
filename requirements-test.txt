@@ -120,7 +120,7 @@ python-multipart==0.0.32
     # via undertow
 pyyaml==6.0.3
     # via uvicorn
-redis==8.0.1
+redis==8.1.0
     # via undertow
 ruff==0.16.2
     # via undertow
