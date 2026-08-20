@@ -184,3 +184,12 @@ greenlet 3.5.4 (patch-level) in the exports.
   Acceptable; both fix in one pass.
 - Deleting a manifest is never a cheap alert-cleanup: the graph keeps the
   last snapshot forever. Update or replace manifests instead.
+
+## 2026-08-19 — Dependabot sweep: terraform provider majors (/infra)
+
+**Status:** accepted (awareness-only stub per saved sweep policy)
+**Decision:** merged #206 and #197 on green CI; post-merge Deploy – Production succeeded.
+- **hashicorp/aws ~>5.0 → ~>6.60** (#206): v6 removes long-deprecated arguments (notably the aws_s3_bucket inline lifecycle/versioning/logging blocks) and tightens default_tags behaviour. The next `terraform plan` in /infra is the real gate — read the plan diff before applying; do not assume no-op.
+- **cloudflare/cloudflare ~>4.0 → ~>5.23** (#197): v5 is a ground-up rewrite on terraform-plugin-framework. Resources were renamed/restructured (e.g. cloudflare_record → cloudflare_dns_record) and state migration may be required. Treat the first plan as potentially noisy; NEVER auto-apply it.
+
+**Why no review:** sweep policy — CI gates, deploy watch, revert cheap. Provider majors only bite at plan/apply time, which stays manual.
