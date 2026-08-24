@@ -159,7 +159,7 @@ tzdata==2026.3
     #   tzlocal
 tzlocal==5.4.4
     # via celery
-uvicorn==0.52.3
+uvicorn==0.52.4
     # via undertow
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
