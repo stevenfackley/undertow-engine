@@ -97,7 +97,7 @@ pyee==13.0.1
     # via playwright
 python-dateutil==2.9.0.post0
     # via celery
-python-dotenv==1.2.2
+python-dotenv==1.2.3
     # via uvicorn
 python-json-logger==4.1.0
     # via undertow
