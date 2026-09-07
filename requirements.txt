@@ -153,7 +153,7 @@ vine==5.1.0
     #   kombu
 watchfiles==1.2.0
     # via uvicorn
-wcwidth==0.8.2
+wcwidth==0.8.3
     # via prompt-toolkit
 websockets==16.1.1
     # via uvicorn
