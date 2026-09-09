@@ -99,7 +99,7 @@ python-dateutil==2.9.0.post0
     # via celery
 python-dotenv==1.2.3
     # via uvicorn
-python-json-logger==4.1.0
+python-json-logger==4.2.0
     # via undertow
 python-multipart==0.0.32
     # via undertow
