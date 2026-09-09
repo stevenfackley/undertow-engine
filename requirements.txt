@@ -59,7 +59,7 @@ httpx==0.28.1
     # via
     #   openai
     #   undertow
-idna==3.18
+idna==3.19
     # via
     #   anyio
     #   httpx
