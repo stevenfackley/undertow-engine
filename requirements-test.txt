@@ -134,7 +134,7 @@ starlette==1.6.0
     # via
     #   fastapi
     #   undertow
-tqdm==4.70.0
+tqdm==4.70.1
     # via openai
 typing-extensions==4.16.0
     # via
