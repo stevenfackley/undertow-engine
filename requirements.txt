@@ -14,7 +14,7 @@ anyio==4.15.1
     #   watchfiles
 async-timeout==5.0.1 ; python_full_version < '3.11.3'
     # via redis
-billiard==4.2.4
+billiard==4.3.0
     # via celery
 celery==5.6.3
     # via undertow
