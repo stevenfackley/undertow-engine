@@ -71,7 +71,7 @@ limits==5.8.0
     # via
     #   slowapi
     #   undertow
-openai==3.19.2
+openai==3.23.0
     # via undertow
 packaging==26.3
     # via
