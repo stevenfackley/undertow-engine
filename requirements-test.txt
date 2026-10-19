@@ -84,7 +84,7 @@ packaging==26.3
     #   pytest
 playwright==1.63.0
     # via undertow
-pluggy==1.6.0
+pluggy==1.7.0
     # via pytest
 prompt-toolkit==3.0.53
     # via click-repl
