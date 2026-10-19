@@ -92,7 +92,7 @@ psycopg==3.3.6
     # via undertow
 psycopg-binary==3.3.6 ; implementation_name != 'pypy'
     # via psycopg
-pydantic==2.13.5
+pydantic==2.14.1
     # via
     #   fastapi
     #   openai
