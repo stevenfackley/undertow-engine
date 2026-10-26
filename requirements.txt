@@ -120,7 +120,7 @@ starlette==1.7.0
     # via
     #   fastapi
     #   undertow
-truststore==0.10.4 ; sys_platform != 'emscripten'
+truststore==0.10.5 ; sys_platform != 'emscripten'
     # via
     #   httpcore2
     #   httpx2
