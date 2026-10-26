@@ -1,9 +1,9 @@
 # ---------------------------------------------------------------------------
 # Undertow Engine – Dockerfile
-# Python 3.11 slim + ffmpeg + Playwright OS dependencies
+# Python 3.12 slim + ffmpeg + Playwright OS dependencies
 # ---------------------------------------------------------------------------
 
-FROM python:3.11-slim AS base
+FROM python:3.12-slim AS base
 
 # --- System dependencies ---------------------------------------------------
 # ffmpeg          : video compositing (libass burns the ASS captions) + pydub audio

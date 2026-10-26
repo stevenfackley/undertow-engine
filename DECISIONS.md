@@ -193,3 +193,14 @@ greenlet 3.5.4 (patch-level) in the exports.
 - **cloudflare/cloudflare ~>4.0 → ~>5.23** (#197): v5 is a ground-up rewrite on terraform-plugin-framework. Resources were renamed/restructured (e.g. cloudflare_record → cloudflare_dns_record) and state migration may be required. Treat the first plan as potentially noisy; NEVER auto-apply it.
 
 **Why no review:** sweep policy — CI gates, deploy watch, revert cheap. Provider majors only bite at plan/apply time, which stays manual.
+
+## 2026-10-26 — Python 3.12 runtime; python-dateutil 3.0 (Dependabot sweep)
+
+**Status:** accepted (awareness stub per the sweep policy)
+**Decision:** one combined change instead of Dependabot #283, #284, #285, #286 and #289, because those edited the uv exports by hand and left `uv.lock` behind (this repo's workflow is pyproject -> `uv lock` -> `uv export`, see the entry above), and because each merge to main deploys prod.
+- **Python 3.11 -> 3.12** (#283): the image (`python:3.12-slim`), `ci.yml` and `deploy-test.yml` move together, so CI tests the runtime that ships. `requires-python` stays `>=3.11` and ruff stays `py311`, so 3.11 remains supported. Watch: pydub imports `audioop`, which Python 3.13 removes; 3.13 needs a pydub replacement or the `audioop-lts` shim first.
+- **python-dateutil 2.9 -> 3.0** (#286): only celery uses it (`>=2.8.2`, no upper bound); this code never imports it. 3.0 rewrites `tz.tzfile` on a zoneinfo backport, follows PEP 495 for times in a DST gap, drops the bundled tz database in favour of the `tzdata` package (already pinned here) and removes `dateutil.tz.TZPATHS`. Celery 5.6 schedules on zoneinfo, so the visible risk is limited to any eta/crontab edge cases inside a DST gap.
+- Minors: httpx2 and httpcore2 2.12 -> 2.16 (#284, #289, upgraded together), jiter 0.17 -> 0.18 (#285), wcwidth patch.
+- Lock drift repaired: certifi, truststore, tzlocal, wcwidth and ruff had been bumped in the exports without `uv.lock`; the lock now carries them at the same or newer versions, so a re-export never downgrades.
+
+**Verification:** `pytest` 178 passed / 1 skipped on Python 3.12 with the new pins, identical to the 3.11 baseline on main's pins. `uv pip compile` resolves both exports on 3.11 and 3.12.

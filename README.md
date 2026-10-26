@@ -9,12 +9,12 @@ temp-directory permissions or a pre-created virtual environment.
 ### Recommended
 
 ```bash
-uv run --python 3.11 --with-requirements requirements-test.txt python scripts/run_tests.py
+uv run --python 3.12 --with-requirements requirements-test.txt python scripts/run_tests.py
 ```
 
 That command will:
 
-- use Python 3.11 as expected by the repo
+- use Python 3.12 as expected by the repo
 - install `requirements.txt` and test dependencies into an isolated uv env
 - run pytest with repo-local cache and temp directories under `.cache/pytest`
 

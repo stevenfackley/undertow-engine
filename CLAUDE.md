@@ -1,7 +1,7 @@
 # {{PROJECT_NAME}}
 
 ## Stack
-{{FLAVOR}}. Python 3.11 + FastAPI + uv. See `docs/architecture/SDD.md`.
+{{FLAVOR}}. Python 3.12 + FastAPI + uv. See `docs/architecture/SDD.md`.
 
 ## Standard flow
 analyze -> read docs/ -> read pyproject.toml -> plan -> work.

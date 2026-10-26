@@ -14,5 +14,5 @@ jobs:
     uses: stevenfackley/gh-actions/.github/workflows/ci-python.yml@v1
     with:
       project-name: undertow-engine
-      python-version: "3.11"
+      python-version: "3.12"
     secrets: inherit
