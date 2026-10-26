@@ -55,7 +55,7 @@ httptools==0.9.0
     # via uvicorn
 httpx==0.28.1
     # via undertow
-httpx2==2.12.0
+httpx2==2.16.0
     # via openai
 httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
     # via httpx2
