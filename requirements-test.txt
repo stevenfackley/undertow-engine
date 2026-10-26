@@ -167,7 +167,7 @@ tzdata==2026.5
     #   kombu
     #   psycopg
     #   tzlocal
-tzlocal==5.4.4
+tzlocal==5.4.5
     # via celery
 uvicorn==0.54.0
     # via undertow
