@@ -115,7 +115,7 @@ pytest==9.1.1
     #   undertow
 pytest-httpx==0.36.2
     # via undertow
-python-dateutil==2.9.0.post0
+python-dateutil==3.0.0
     # via celery
 python-dotenv==1.2.4
     # via uvicorn
