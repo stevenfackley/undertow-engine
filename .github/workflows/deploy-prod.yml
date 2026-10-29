@@ -27,6 +27,9 @@ concurrency:
 jobs:
   build:
     name: Build & Push Image (Production)
+    # Fleet guardrail: Dependabot auto-merges must not each trigger a prod
+    # deploy. `deploy` needs `build`, so it is skipped too.
+    if: github.event_name != 'push' || (github.event.head_commit.author.username != 'dependabot[bot]' && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     permissions:
       contents: read

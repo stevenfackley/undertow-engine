@@ -2,7 +2,7 @@
 
 ## Overview
 
-Undertow Engine is a Python microservice that orchestrates a five-stage pipeline — AI scripting → TTS + silence stripping → Whisper word timestamps → MoviePy kinetic video compositing → Playwright social upload — triggered by a single HTTP POST and executed asynchronously via Celery.
+Undertow Engine is a Python microservice that orchestrates a five-stage pipeline — AI scripting → TTS + silence stripping → Whisper word timestamps → ffmpeg + libass kinetic video compositing → Playwright social upload — triggered by a single HTTP POST and executed asynchronously via Celery.
 
 ---
 
@@ -10,10 +10,10 @@ Undertow Engine is a Python microservice that orchestrates a five-stage pipeline
 
 Short-form video platforms (TikTok, Instagram Reels) reward high posting frequency and strong opening hooks. Existing tools either require manual editing or produce generic output. Undertow Engine automates the full loop using:
 
-- **OpenAI GPT-4o** for hook-first scriptwriting.
+- **OpenAI chat model** (`gpt-4.1-mini` by default, `OPENAI_CHAT_MODEL`) for hook-first scriptwriting.
 - **OpenAI TTS** (`tts-1`) for natural-sounding narration.
 - **OpenAI Whisper** (`whisper-1`) for word-level timestamp extraction.
-- **MoviePy** for subtitle compositing over gameplay footage.
+- **ffmpeg + libass** for subtitle compositing over gameplay footage (MoviePy was dropped 2026-06-13; see DECISIONS.md).
 - **Playwright** for headless browser-based social media upload.
 
 ---
@@ -89,7 +89,7 @@ Job status schema (`JobStatusResponse`):
 
 #### `app/ai_scripting.py`
 
-- Model: `gpt-4o`, temperature 0.9, max 300 tokens.
+- Model: `OPENAI_CHAT_MODEL` (default `gpt-4.1-mini`), temperature 0.9, max 300 tokens.
 - System prompt enforces three-part structure: 3-second hook → rapid-fire body → loop-back ending.
 - Lazy-initialised `OpenAI` client cached in a module-level variable.
 
@@ -128,12 +128,12 @@ Word colour classification:
 | Action | Yellow | build, ship, dominate, grind |
 | Default | White | everything else |
 
-Pipeline:
-1. `AudioFileClip` loads the processed MP3; duration is extracted.
-2. Background video is downloaded via `urllib.request.urlretrieve` to a temp dir.
-3. `VideoFileClip.subclip(0, audio_duration)` crops the background.
-4. One `TextClip` per word: Montserrat Black 70pt, with black stroke, positioned at `(center, 75%)`.
-5. `CompositeVideoClip([bg, *text_clips])` renders to H.264/AAC MP4 at 30 fps.
+Pipeline (single `ffmpeg` filtergraph, no Python frame compositing):
+1. `_probe_duration` (ffprobe) reads the processed MP3 duration.
+2. `_resolve_background` downloads the background URL (or copies a local path) into a temp dir; its duration is probed too.
+3. If the background is shorter than the audio it is looped (`-stream_loop -1`); otherwise `_random_start_offset` picks a random `-ss` start.
+4. `_build_ass` writes an ASS subtitle with one timed `Dialogue` event per word: Montserrat Black (fontconfig name, from `fonts-montserrat`), size 120 at 1080×1920, black outline, centred at 75 % height, colour per the table above.
+5. `_build_ffmpeg_cmd` scale-covers and centre-crops to 1080×1920, burns the captions with the `subtitles=` (libass) filter, maps the voiceover, and encodes H.264/AAC MP4 at 30 fps trimmed to the audio duration.
 
 ---
 
@@ -181,8 +181,8 @@ WordTimestamp
                                 │
                ┌────────────────┼────────────────┐
                │                │                │
-        OpenAI APIs       MoviePy/ffmpeg    Playwright
-        (GPT-4o, TTS,                      (Chromium)
+        OpenAI APIs       ffmpeg/libass     Playwright
+        (chat, TTS,                        (Chromium)
          Whisper)
 ```
 
@@ -198,7 +198,7 @@ Volumes:
 |----------|-------------|-------------|
 | Celery + Redis for async | FastAPI `BackgroundTasks` | No persistence, no retry, no cross-process result backend |
 | OpenAI Whisper for timestamps | Gentle, WhisperX | Requires local GPU or separate service; Whisper API is zero-infra |
-| MoviePy for compositing | FFmpeg subprocess | MoviePy provides a Pythonic clip model; raw ffmpeg commands are fragile to maintain |
+| ffmpeg + libass subprocess for compositing | MoviePy | Originally chosen; dropped 2026-06-13: abandoned upstream, broke on Pillow 10+ (`Image.ANTIALIAS`), needed ImageMagick for `TextClip`, and composited per-frame in Python. Command construction is now pure, unit-tested functions. |
 | Playwright persistent context | Selenium, API-based upload | Platform upload APIs are restricted/private; persistent context re-uses auth cookies |
 | pydub for silence stripping | librosa, sox | pydub is the simplest API for this single operation; no need for librosa's analysis capabilities |
 

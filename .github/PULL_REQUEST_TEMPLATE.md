@@ -9,6 +9,6 @@
 ## Checklist
 
 - [ ] CI green
-- [ ] ruff / mypy / pytest pass
+- [ ] ruff / pytest pass
 - [ ] ADR added in `DECISIONS.md` if architecture changes
 - [ ] Docs updated

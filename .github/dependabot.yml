@@ -2,47 +2,50 @@ version: 2
 updates:
   - package-ecosystem: pip
     directory: /
-    schedule: { interval: weekly, day: monday }
-    open-pull-requests-limit: 10
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     ignore:
       # pydantic-core is version-locked to pydantic (exact == pin upstream).
       # Standalone core bumps outrun pydantic and break pip resolution at
       # Docker build (2026-06-11, core 2.47.0 vs pydantic 2.13.4). Let core
       # move only when a pydantic bump drags it.
       - dependency-name: "pydantic-core"
-      # pyiceberg 0.11.x caps rich<15. Block rich majors until pyiceberg
-      # supports 15 (2026-06-11, deploy ResolutionImpossible).
-      - dependency-name: "rich"
-        update-types: ["version-update:semver-major"]
-      # pyiceberg 0.11.x caps cachetools<7. Block cachetools majors until
-      # pyiceberg supports 7 (2026-06-13, deploy ResolutionImpossible at
-      # Docker build: cachetools 7.1.4 vs pyiceberg 0.11.1).
-      - dependency-name: "cachetools"
-        update-types: ["version-update:semver-major"]
-      # supabase realtime 2.31.x caps websockets<16. Block websockets majors
-      # until realtime widens (2026-06-13, deploy ResolutionImpossible at
-      # Docker build: websockets 16.0 vs realtime 2.31.0).
-      - dependency-name: "websockets"
-        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /
-    schedule: { interval: weekly, day: monday }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      docker-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly, day: monday }
+    schedule: { interval: monthly }
+    open-pull-requests-limit: 3
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   # ── Added by the project-wide Dependabot sweep ──────────────────────────
   # Ecosystems present in the repo that no existing entry covered.
   - package-ecosystem: "terraform"
     directory: "/infra"
     schedule:
-      interval: "weekly"
-      day: "monday"
+      interval: "monthly"
       time: "06:00"
       timezone: "America/New_York"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      terraform-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
     labels:
       - "dependencies"
       - "terraform"
