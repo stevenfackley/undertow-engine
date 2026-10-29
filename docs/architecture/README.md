@@ -2,16 +2,19 @@
 
 ## System Overview
 
-Undertow Engine is a stateless Python microservice composed of four runtime components:
+Undertow Engine is a stateless Python microservice composed of these runtime components:
 
 | Component | Technology | Role |
 |-----------|-----------|------|
 | **api** | FastAPI + Uvicorn | Accepts HTTP requests, enqueues jobs, exposes status endpoint |
 | **worker** | Celery | Executes the video pipeline asynchronously |
 | **redis** | Redis 7 | Message broker and Celery result backend |
+| **beat** | Celery beat | Periodic-task scheduler |
+| **flower** | Flower (`mher/flower:2.0`) | Celery monitoring UI on :5555 (basic auth in prod) |
+| **cloudflared** | Cloudflare Tunnel | Prod only (`docker-compose.prod.yml`); tunnels to the `undertow-api` container |
 | *(Chromium)* | Playwright | Embedded in the worker; used for headless social upload |
 
-All three services are built from the same Docker image (`undertow-engine:latest`) and wired together via Docker Compose.
+The `api`, `worker` and `beat` services are built from the same Docker image (`undertow-engine:latest`); `redis`, `flower` and `cloudflared` use upstream images. All are wired together via Docker Compose.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -60,7 +63,7 @@ Client                  api               Redis             Worker
   │  {task_id, queued}   │                  │  BRPOP          │
   │◀─────────────────────│                  │────────────────▶│
   │                      │                  │                 │ generate_script()
-  │                      │                  │  PROGRESS       │ ──▶ OpenAI GPT-4o
+  │                      │                  │  PROGRESS       │ ──▶ OpenAI chat (gpt-4.1-mini)
   │                      │                  │◀────────────────│
   │                      │                  │                 │ process_script_to_audio()
   │                      │                  │  PROGRESS       │ ──▶ OpenAI TTS
@@ -69,7 +72,7 @@ Client                  api               Redis             Worker
   │                      │                  │  PROGRESS       │ ──▶ OpenAI Whisper
   │                      │                  │◀────────────────│
   │                      │                  │                 │ compose_video()
-  │                      │                  │  PROGRESS       │ ──▶ MoviePy/ffmpeg
+  │                      │                  │  PROGRESS       │ ──▶ ffmpeg + libass
   │                      │                  │◀────────────────│
   │                      │                  │                 │ upload_to_tiktok/instagram()
   │                      │                  │  SUCCESS        │ ──▶ Playwright/Chromium
@@ -104,12 +107,12 @@ Client                  api               Redis             Worker
 
 **Status:** Accepted
 
-**Context:** The API and worker share all Python dependencies (FastAPI, Celery, MoviePy, Playwright, OpenAI SDK). Maintaining two Dockerfiles would duplicate the dependency installation and increase image divergence risk.
+**Context:** The API and worker share all Python dependencies (FastAPI, Celery, Playwright, OpenAI SDK). Maintaining two Dockerfiles would duplicate the dependency installation and increase image divergence risk.
 
 **Decision:** Build one image (`undertow-engine:latest`) and override the `command` per service in `docker-compose.yml`.
 
 **Consequences:**
-- Image is larger than strictly necessary for the API-only service (includes MoviePy, Playwright, ffmpeg).
+- Image is larger than strictly necessary for the API-only service (includes Playwright, ffmpeg).
 - Simpler CI: one build step, one push.
 - Both services always stay in sync on dependency versions.
 

@@ -8,7 +8,13 @@ Base URL: `http://localhost:8000` (local) — override with your host in product
 
 ## Authentication
 
-Currently unauthenticated. Add a reverse proxy (e.g. nginx with `auth_basic`, or an API gateway) in front of the service before exposing it publicly.
+The `/api/v1/*` job routes require an `X-API-Key` header matching the `API_KEY` environment variable (`main.py`, `_require_api_key`). A missing or wrong key returns `401 Unauthorized`. When `API_KEY` is unset, auth is disabled; that is meant for local development only. Production sets `API_KEY` via `docker-compose.prod.yml`.
+
+```bash
+curl -s http://localhost:8000/api/v1/jobs/abc-123 -H "X-API-Key: $API_KEY"
+```
+
+The health probes (`/healthz`, `/readyz`) are unauthenticated.
 
 ---
 
@@ -24,6 +30,17 @@ Liveness probe. Returns immediately without touching Redis or any external servi
 ```json
 { "status": "ok" }
 ```
+
+#### `GET /readyz`
+
+Readiness probe. Pings Redis (`REDIS_URL`) with a 2 s connect timeout.
+
+**Response `200 OK`**
+```json
+{ "status": "ok" }
+```
+
+**Response `503 Service Unavailable`** — Redis unreachable.
 
 ---
 
@@ -107,10 +124,10 @@ Poll the status of a video generation job.
 
 | Value | Pipeline stage |
 |-------|---------------|
-| `scripting` | Generating script with GPT-4o |
+| `scripting` | Generating script (OpenAI chat model, `gpt-4.1-mini` by default; override with `OPENAI_CHAT_MODEL`) |
 | `audio_processing` | TTS synthesis + silence stripping |
 | `timestamp_extraction` | Whisper word-timestamp extraction |
-| `video_compositing` | MoviePy render |
+| `video_compositing` | ffmpeg + libass render |
 | `publishing` | Playwright upload to platforms |
 
 **Example response — in progress**
@@ -147,6 +164,7 @@ All error responses follow FastAPI's default format:
 
 | HTTP Code | When |
 |-----------|------|
+| 401 | `API_KEY` is set and the `X-API-Key` header is missing or wrong |
 | 422 | Request body fails validation |
 | 503 | Celery broker is unreachable when enqueuing |
 

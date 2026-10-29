@@ -6,7 +6,7 @@ Undertow Engine automates the full lifecycle of short-form video content: from a
 
 **Problem:** Creating high-performing short-form video at scale requires hours of manual effort per clip — writing hooks, recording VO, burning subtitles, and uploading. This bottleneck caps output volume and responsiveness to trends.
 
-**Solution:** A headless microservice that ingests a topic and a background video URL, generates a viral script via GPT-4o, synthesises speech, extracts word-level timestamps via Whisper, composites kinetic subtitles with MoviePy, and publishes via Playwright — all asynchronously via Celery.
+**Solution:** A headless microservice that ingests a topic and a background video URL, generates a viral script via an OpenAI chat model (`gpt-4.1-mini` by default), synthesises speech, extracts word-level timestamps via Whisper, burns kinetic subtitles with ffmpeg + libass, and publishes via Playwright — all asynchronously via Celery.
 
 ---
 
@@ -48,10 +48,10 @@ Undertow Engine automates the full lifecycle of short-form video content: from a
 |----|-------------|
 | F-01 | `POST /api/v1/generate` accepts `text`, `background_video_url`, `caption`, and `platforms`. Returns `task_id` and `status: queued`. |
 | F-02 | `GET /api/v1/jobs/{task_id}` returns `status` (queued / started / progress / complete / failed), current `step`, and `output_path` when complete. |
-| F-03 | Script generation uses GPT-4o with the viral hook → body → loop-back structure. |
+| F-03 | Script generation uses an OpenAI chat model (`OPENAI_CHAT_MODEL`, default `gpt-4.1-mini`) with the viral hook → body → loop-back structure. |
 | F-04 | TTS uses OpenAI `tts-1` (voice: `onyx`). Silence gaps > 200 ms are stripped via pydub. |
 | F-05 | Word timestamps are extracted via Whisper `whisper-1` with `timestamp_granularities: ["word"]`. |
-| F-06 | Each word is rendered as a `TextClip` (Montserrat Black, 70 pt). Negative words render red; action words render yellow; others white. |
+| F-06 | Each word is rendered as a timed ASS subtitle event burned in by ffmpeg/libass (Montserrat Black, size 120 at 1080×1920, black outline). Negative words render red; action words render yellow; others white. |
 | F-07 | The background video is cropped to the audio duration; the final output is H.264/AAC MP4 at 30 fps. |
 | F-08 | `GET /healthz` returns `{"status": "ok"}` for liveness probes. |
 | F-09 | Rendered MP4 files persist to `/data/outputs` (Docker volume); the Chromium profile persists to `/data/chromium-profile`. |
@@ -83,7 +83,7 @@ Undertow Engine automates the full lifecycle of short-form video content: from a
 | # | Question | Owner | Status |
 |---|----------|-------|--------|
 | 1 | What is the maximum acceptable end-to-end latency for a 60-second video? | — | Open |
-| 2 | Should failed jobs be retried automatically? How many times? | — | Open |
+| 2 | Should failed jobs be retried automatically? How many times? | — | Closed 2026-06-30: transient failures get bounded exponential-backoff retries (`JOB_MAX_RETRIES`, default 3); permanent failures dead-letter to `DLQ_DIR`. See DECISIONS.md 2026-06-30. |
 | 3 | How should the system handle a background video shorter than the generated audio? | — | Open |
 | 4 | Is a random clip start offset needed to avoid duplicate-looking content across runs? | — | Open |
-| 5 | Do we need a webhook callback when a job completes instead of (or in addition to) polling? | — | Open |
+| 5 | Do we need a webhook callback when a job completes instead of (or in addition to) polling? | — | Closed 2026-06-30: completion webhook fires on success and dead-letter (`callback_url` → `JOB_WEBHOOK_URL`), optionally HMAC-signed. See DECISIONS.md 2026-06-30. |

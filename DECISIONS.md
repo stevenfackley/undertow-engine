@@ -2,7 +2,7 @@
 
 ADR log. Append-only.
 
-## {{DATE}} — Initial stack: Python 3.11 + FastAPI + uv
+## 2026-04-03 — Initial stack: Python 3.11 + FastAPI + uv
 
 **Status:** accepted
 **Context:** Greenfield service under `repo-template-python-fastapi`. Async IO, quick iteration.

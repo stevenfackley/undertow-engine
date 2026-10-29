@@ -1,5 +1,5 @@
 # undertow-engine <sub>`>o)`</sub>
-A standalone Python microservice for automated short-form video compositing and headless social media deployment. Built with FastAPI, Celery, MoviePy, and Playwright.
+A standalone Python microservice for automated short-form video compositing and headless social media deployment. Built with FastAPI, Celery, ffmpeg + libass, and Playwright.
 
 ## Local Test Runner
 

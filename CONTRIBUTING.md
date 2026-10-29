@@ -5,12 +5,11 @@
 2. Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `ci:`.
 3. PR → CI green → squash-merge.
 
-## Pre-push (run `/ship` or manually)
+## Pre-push (run `mise run ship` plus the secret scan, or manually)
 
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run mypy src
 uv run pytest
 pwsh scripts/scan-secrets.ps1
 ```
