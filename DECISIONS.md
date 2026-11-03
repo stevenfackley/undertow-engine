@@ -204,3 +204,12 @@ greenlet 3.5.4 (patch-level) in the exports.
 - Lock drift repaired: certifi, truststore, tzlocal, wcwidth and ruff had been bumped in the exports without `uv.lock`; the lock now carries them at the same or newer versions, so a re-export never downgrades.
 
 **Verification:** `pytest` 178 passed / 1 skipped on Python 3.12 with the new pins, identical to the 3.11 baseline on main's pins. `uv pip compile` resolves both exports on 3.11 and 3.12.
+
+## 2026-11-02 — websockets 16.1.1 -> 17.4 (Dependabot sweep)
+
+**Status:** accepted (awareness stub per the sweep policy)
+**Decision:** one combined change instead of Dependabot #297 and #298, for the reasons in the 2026-10-26 entry (hand-edited exports, `uv.lock` left behind) plus one more: `deploy-prod.yml` skips `dependabot[bot]`-authored pushes, so a squash of a bot PR never reaches prod.
+- **websockets 16.1.1 -> 17.4** (#297 targeted 17.3; `uv lock --upgrade-package` took the current release): transitive only, pulled by `uvicorn[standard]` with no upper bound. Nothing in this repo imports `websockets` and no route serves WebSockets, so uvicorn's WS protocol path is never exercised. 17.0's backwards-incompatible changes, all behind uvicorn: requires Python >= 3.11 (the image runs 3.12; `requires-python >= 3.11` is unaffected); aliases for modules moved or deprecated in 9.0 are removed; several boolean arguments are keyword-only; the `socket` argument is renamed `sock` on `ClientConnection`, `ServerConnection` and the threading implementation; non-ASCII handshake header encoding changed; `process_request` may now see non-GET or HTTP/1.0 requests. Watch: if a WebSocket endpoint is ever added, uvicorn's `websockets` protocol implementation is the consumer; `--ws wsproto` is the fallback.
+- Minors (#298): fastapi 0.143.3 -> 0.162.0, starlette 1.7.0 -> 1.10.0, openai 3.31.0 -> 3.41.0 (pyproject pin), pytest 9.1.1 -> 9.2.0, ruff 0.17.2 -> 0.17.3, tzdata 2026.5 -> 2026.6.
+
+**Verification:** `uv lock --check` clean; `uv pip install --dry-run` of both exports resolves in a Python 3.12 venv. CI runs the suite on the PR.
