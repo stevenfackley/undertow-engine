@@ -1,4 +1,4 @@
-#requires -Version 7
+#requires -Version 7.2
 <#
 .SYNOPSIS
   Secret-shape and banned-package scan, runnable locally. Same patterns, same engine (git grep)
@@ -62,24 +62,26 @@ function Search-Tree {
       to every file it meets, so it passes over a tracked file that matches an ignore rule, and a
       force-added .env is exactly that.
 
-      Status is git's: 0 a match, 1 no match, anything else an error. An error is a failure,
-      never a pass.
+      Lines holds what matched. Failed is git's exit code when a call failed (anything but 0, a
+      match, or 1, no match), and 0 otherwise. A failed call is a failure of the scan, never a
+      pass; what an earlier call matched is still returned.
     #>
     param([string[]]$Options, [string]$Pattern, [string[]]$Spec)
+    # A tracked file that is not ignored is found by both calls, so each line is kept once.
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     $lines = [System.Collections.Generic.List[string]]::new()
-    $status = 1
+    $failed = 0
     foreach ($scope in @(), @('--untracked')) {
         $found = @(Invoke-Git (@('-C', $top, 'grep') + $Options + $scope + @('-e', $Pattern, '--') + $Spec))
         if ($gitExit -eq 0) {
-            $lines.AddRange([string[]]$found)
-            $status = 0
+            foreach ($line in $found) { if ($seen.Add($line)) { $lines.Add($line) } }
         }
         elseif ($gitExit -ne 1) {
-            return [pscustomobject]@{ Status = $gitExit; Lines = @() }
+            $failed = $gitExit
+            break
         }
     }
-    # A tracked file that is not ignored is found by both calls.
-    [pscustomobject]@{ Status = $status; Lines = @($lines | Select-Object -Unique) }
+    [pscustomobject]@{ Failed = $failed; Lines = $lines.ToArray() }
 }
 
 function Test-WideBom {
@@ -104,6 +106,7 @@ try {
     # git writes file names as UTF-8. PowerShell decodes them with the console's code page, and
     # on a stock Windows console a name with an accent comes back wrong and cannot be opened.
     try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch { }
+    $utf8Console = [Console]::OutputEncoding.CodePage -eq 65001
     $fail = $false
 
     $top = @(Invoke-Git @('rev-parse', '--show-toplevel')) | Select-Object -First 1
@@ -137,6 +140,11 @@ try {
         Write-Host '::error::No files to scan: everything under -Paths is on the leave-out list.' -ForegroundColor Red
         $fail = $true
     }
+    # Plain ASCII names read the same in every code page. Others do not, and a name that comes
+    # back wrong is a file that cannot be opened.
+    if (-not $utf8Console -and @($files | Where-Object { $_ -match '[^\x00-\x7F]' }).Count -gt 0) {
+        $unread.Add('The console could not be switched to UTF-8, so file names with accented or non-Latin characters are not read back from git correctly.')
+    }
 
     $patterns = @(
         'InstrumentationKey='
@@ -151,13 +159,13 @@ try {
     ) -join '|'
 
     $secrets = Search-Tree -Options '-nIE' -Pattern $patterns -Spec $pathspec
-    if ($secrets.Status -eq 0) {
+    if ($secrets.Lines.Count -gt 0) {
         Write-Host '::error::Secret-shape match:' -ForegroundColor Red
         $secrets.Lines | ForEach-Object { Write-Host "  $_" }
         $fail = $true
     }
-    elseif ($secrets.Status -ne 1) {
-        Write-Host "::error::git grep failed (exit $($secrets.Status)). The secret scan did not run." -ForegroundColor Red
+    if ($secrets.Failed) {
+        Write-Host "::error::git grep failed (exit $($secrets.Failed)). The secret scan did not finish." -ForegroundColor Red
         $fail = $true
     }
 
@@ -182,12 +190,12 @@ try {
     # are lower case (@sentry/nextjs, sentry-sdk, mixpanel, newrelic).
     $manifests = ':(glob)**/*.csproj', ':(glob)**/package.json', ':(glob)**/pyproject.toml', ':(glob)**/requirements*.txt'
     $banned = Search-Tree -Options '-lIiE' -Pattern $BannedPackages -Spec $manifests
-    if ($banned.Status -eq 0) {
+    if ($banned.Lines.Count -gt 0) {
         $banned.Lines | ForEach-Object { Write-Host "::error::Banned package match in $_" -ForegroundColor Red }
         $fail = $true
     }
-    elseif ($banned.Status -ne 1) {
-        Write-Host "::error::git grep failed (exit $($banned.Status)). The banned-package scan did not run." -ForegroundColor Red
+    if ($banned.Failed) {
+        Write-Host "::error::git grep failed (exit $($banned.Failed)). The banned-package scan did not finish." -ForegroundColor Red
         $fail = $true
     }
 
