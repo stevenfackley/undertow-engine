@@ -5,7 +5,8 @@
   and same leave-outs as the shared CI workflow, gh-actions/secret-scan.yml.
 
 .DESCRIPTION
-  Scans the files git knows about in the checkout it is run from: every tracked file, plus new
+  Scans the files git knows about in the checkout this script is in, wherever it is run from
+  (-Root names another checkout): every tracked file, plus new
   files that are not ignored (what `git add -A` would stage). It asks git for them and never
   walks the disk, so:
 
@@ -24,6 +25,10 @@
 param(
     # Pathspecs relative to the repo root. The default is the whole tree.
     [string[]]$Paths = @('.'),
+    # The checkout to scan: any folder inside it. The default is the one this script is in. It used
+    # to be the current directory, so the script run by its full path from another repo scanned
+    # that repo and reported it clean.
+    [string]$Root = $PSScriptRoot,
     [string]$BannedPackages = 'ApplicationInsights|Sentry|Segment|Mixpanel|Datadog|NewRelic|Raygun|Rollbar|Bugsnag|HockeyApp|AppCenter|GoogleAnalytics',
     # Never searched for secret shapes. Same list as the shared workflow.
     [string[]]$Exclude = @('.env.example', 'docs/**', '.claude/**', '.agents/**', 'skills/**', '*scan-secrets*')
@@ -109,9 +114,9 @@ try {
     $utf8Console = [Console]::OutputEncoding.CodePage -eq 65001
     $fail = $false
 
-    $top = @(Invoke-Git @('rev-parse', '--show-toplevel')) | Select-Object -First 1
+    $top = @(Invoke-Git @('-C', $Root, 'rev-parse', '--show-toplevel')) | Select-Object -First 1
     if ($gitExit -ne 0 -or -not $top) {
-        Write-Host '::error::Not inside a git checkout. The scan reads the files git knows about, so here it would read nothing.' -ForegroundColor Red
+        Write-Host "::error::Not inside a git checkout: '$Root'. The scan reads the files git knows about, so here it would read nothing." -ForegroundColor Red
         $unread | ForEach-Object { Write-Host "  $_" }
         exit 1
     }
