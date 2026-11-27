@@ -5,7 +5,8 @@
   and same leave-outs as the shared CI workflow, gh-actions/secret-scan.yml.
 
 .DESCRIPTION
-  Scans the files git knows about in the checkout it is run from: every tracked file, plus new
+  Scans the files git knows about in the checkout this script is in, wherever it is run from
+  (-Root names another checkout): every tracked file, plus new
   files that are not ignored (what `git add -A` would stage). It asks git for them and never
   walks the disk, so:
 
@@ -18,6 +19,9 @@
   Binary files are skipped, as they are in CI. One exception: UTF-16 and UTF-32 files, which
   git cannot search, are found by their byte-order mark, decoded and searched here.
 
+  Run as text with no file of its own (piped into pwsh), it has no folder to start from and
+  scans the checkout of the current directory.
+
   Exit code 0: clean. 1: a match, nothing to scan, or anything git could not read.
 #>
 [CmdletBinding()]
@@ -26,7 +30,12 @@ param(
     [string[]]$Paths = @('.'),
     [string]$BannedPackages = 'ApplicationInsights|Sentry|Segment|Mixpanel|Datadog|NewRelic|Raygun|Rollbar|Bugsnag|HockeyApp|AppCenter|GoogleAnalytics',
     # Never searched for secret shapes. Same list as the shared workflow.
-    [string[]]$Exclude = @('.env.example', 'docs/**', '.claude/**', '.agents/**', 'skills/**', '*scan-secrets*')
+    [string[]]$Exclude = @('.env.example', 'docs/**', '.claude/**', '.agents/**', 'skills/**', '*scan-secrets*'),
+    # The checkout to scan: any folder inside it. The default is the one this script is in. It used
+    # to be the current directory, so the script run by its full path from another repo scanned
+    # that repo and reported it clean.
+    # Last on purpose: the parameters before it keep their positions.
+    [string]$Root = $PSScriptRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +45,19 @@ $PSNativeCommandUseErrorActionPreference = $false
 $unread = [System.Collections.Generic.List[string]]::new()
 $gitStderr = [System.IO.Path]::GetTempFileName()
 $consoleEncoding = [Console]::OutputEncoding
+
+# git hands GIT_DIR, without a work tree, to hooks, aliases and `rebase -x` commands that run
+# inside a linked worktree. With it set, git takes whatever folder it is pointed at for the top
+# of the tree: the file list still comes from the index, none of those files is found on disk,
+# and the scan would pass having read nothing. This scan finds its checkout from -Root, so both
+# variables are set aside for the run.
+$gitEnvironment = @{}
+foreach ($name in 'GIT_DIR', 'GIT_WORK_TREE') {
+    $gitEnvironment[$name] = [Environment]::GetEnvironmentVariable($name)
+    # Through the Env: drive on purpose. [Environment]::SetEnvironmentVariable with no value leaves
+    # an empty variable on current .NET, and git reads an empty GIT_DIR as "not a repository".
+    Remove-Item -LiteralPath "Env:$name" -ErrorAction SilentlyContinue
+}
 
 function Invoke-Git {
     <#
@@ -109,9 +131,9 @@ try {
     $utf8Console = [Console]::OutputEncoding.CodePage -eq 65001
     $fail = $false
 
-    $top = @(Invoke-Git @('rev-parse', '--show-toplevel')) | Select-Object -First 1
+    $top = @(Invoke-Git @('-C', $Root, 'rev-parse', '--show-toplevel')) | Select-Object -First 1
     if ($gitExit -ne 0 -or -not $top) {
-        Write-Host '::error::Not inside a git checkout. The scan reads the files git knows about, so here it would read nothing.' -ForegroundColor Red
+        Write-Host "::error::Not inside a git checkout: '$Root'. The scan reads the files git knows about, so here it would read nothing." -ForegroundColor Red
         $unread | ForEach-Object { Write-Host "  $_" }
         exit 1
     }
@@ -155,7 +177,7 @@ try {
         'sk_live_[0-9a-zA-Z]+'
         'sk-ant-[0-9a-zA-Z_-]+'
         'ghp_[0-9a-zA-Z]{36,}'
-        '-----BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY-----'
+        '-----BEGIN ([A-Z0-9]+ )*PRIVATE KEY( BLOCK)?-----'
     ) -join '|'
 
     $secrets = Search-Tree -Options '-nIE' -Pattern $patterns -Spec $pathspec
@@ -166,6 +188,14 @@ try {
     }
     if ($secrets.Failed) {
         Write-Host "::error::git grep failed (exit $($secrets.Failed)). The secret scan did not finish." -ForegroundColor Red
+        $fail = $true
+    }
+
+    # The list comes from git's index. If not one of those files is on disk under the top folder,
+    # git and this script disagree about where the tree is, and nothing below would read anything.
+    $onDisk = @($files | Where-Object { [System.IO.File]::Exists((Join-Path $top $_)) }).Count
+    if ($files.Count -gt 0 -and $onDisk -eq 0) {
+        Write-Host "::error::git lists $($files.Count) files and none of them is on disk under '$top'. Nothing was read." -ForegroundColor Red
         $fail = $true
     }
 
@@ -188,7 +218,7 @@ try {
 
     # Dependency manifests anywhere in the tree. Case-insensitive on purpose: npm and PyPI names
     # are lower case (@sentry/nextjs, sentry-sdk, mixpanel, newrelic).
-    $manifests = ':(glob)**/*.csproj', ':(glob)**/package.json', ':(glob)**/pyproject.toml', ':(glob)**/requirements*.txt'
+    $manifests = ':(glob)**/*.csproj', ':(glob)**/package.json', ':(glob)**/pyproject.toml', ':(glob)**/requirements*.txt', ':(glob)**/requirements/**/*.txt'
     $banned = Search-Tree -Options '-lIiE' -Pattern $BannedPackages -Spec $manifests
     if ($banned.Lines.Count -gt 0) {
         $banned.Lines | ForEach-Object { Write-Host "::error::Banned package match in $_" -ForegroundColor Red }
@@ -206,12 +236,15 @@ try {
     }
 
     if ($fail) { exit 1 }
-    Write-Host "No secret-shaped strings or banned packages found ($($files.Count) files)." -ForegroundColor Green
+    Write-Host "No secret-shaped strings or banned packages found in $top ($($files.Count) files)." -ForegroundColor Green
     # Explicit: the last git grep left 1 ("no match") in $LASTEXITCODE, and a caller that reads
     # it after running this script in-process would take a clean pass for a failure.
     exit 0
 }
 finally {
     try { [Console]::OutputEncoding = $consoleEncoding } catch { }
+    foreach ($name in $gitEnvironment.Keys) {
+        if ($null -ne $gitEnvironment[$name]) { Set-Item -LiteralPath "Env:$name" -Value $gitEnvironment[$name] }
+    }
     Remove-Item -LiteralPath $gitStderr -ErrorAction SilentlyContinue
 }
