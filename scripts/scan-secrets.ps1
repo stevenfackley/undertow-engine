@@ -155,7 +155,7 @@ try {
         'sk_live_[0-9a-zA-Z]+'
         'sk-ant-[0-9a-zA-Z_-]+'
         'ghp_[0-9a-zA-Z]{36,}'
-        '-----BEGIN (RSA|OPENSSH|EC|PGP) PRIVATE KEY-----'
+        '-----BEGIN ((RSA|OPENSSH|EC|PGP) )?PRIVATE KEY-----'
     ) -join '|'
 
     $secrets = Search-Tree -Options '-nIE' -Pattern $patterns -Spec $pathspec
